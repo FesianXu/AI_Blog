@@ -83,9 +83,89 @@ saver = tf.train.Saver({
 # 模型的持久化，保存为pb文件
 使用tf.train.Saver会保存运行程序需要的全部信息，然而有时候并不需要某些信息，比如在测试或者离线预测的时候，只需要知道**如何从神经网络的输入层经过前向传播计算得到输出层**即可，而不需要类似变量初始化，模型保存等辅助节点的信息。可以利用tensorflow提供的convert_variables_to_constant函数，可以将所有计算图中的变量和取值通过常量的形式保存，这样整个计算图就可以统一放在一个pb文件中。（在C#中的TensorFlowSharp可以用于加载模型，后面会谈到如何在TensorFlowSharp中加载TensorFlow模型进行预测）。
 
+## 保存pb文件
+```python
+import tensorflow as tf
+var1 = tf.Variable([1.0], dtype=tf.float32, name='v1')
+var2 = tf.Variable([2.0], dtype=tf.float32, name='v2')
+addop = tf.add(var1, var2, name='add')
+
+initop = tf.global_variables_initializer()
+model_path = 'C://model.pb'
+
+with tf.Session() as sess:
+    sess.run(initop)
+    
+    # 导出当前图的GraphDef部分，单靠这一部分就可以完成从输入层到输出层的计算过程。
+    graph_def = tf.get_default_graph().as_graph_def()
+    
+    # 将图上的变量以及取值转换成常量，同时将图上不必要的节点去掉。因为一些系统运行也会转变成计算图中的节点，比如变量初始化操作
+    # 如果只是关心某一些操作，和此无关的节点就可以不用保存了。
+    # 这里的output_node_name给出了需要保存的输出节点名称。
+    output_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=['add'])
+    
+    # 将导出模型存入文件
+    with tf.gfile.GFile(model_path, 'wb') as f:
+        f.write(output_graph_def.SerializeToString())
+```
+
+这里给出关键的convert_variables_to_constants()函数的声明：
+> convert_variables_to_constants(
+    **sess**,
+    **input_graph_def**,
+    **output_node_names**,
+    **variable_names_whitelist=None**,
+    **variable_names_blacklist=None**
+)
+
+> **Args:**
+> * **sess**: Active TensorFlow session containing the variables.
+* **input_graph_def**: GraphDef object holding the network.
+* **output_node_names**: List of name strings for the result nodes of the graph.
+* **variable_names_whitelist**: The set of variable names to convert (by default, all * variables are converted).
+* **variable_names_blacklist**: The set of variable names to omit converting to constants.
+
+> **Returns:**
+> * GraphDef containing a simplified version of the original.
 
 
+## 加载pb文件
+在python中加载pb文件如下所示：
+```python
+from tensorflow as tf
+from tensorflow.python.platform import gfile
+with tf.Session() as sess:
+    model_path = "C://model.pb"
+    # 读取保存的pb文件，并且将其加载进计算图中。
+    with gfile.FastGFile(model_path, "rb") as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+    # 将graph_def中的保存的计算图加载到当前计算图中，return_elements给出了返回的张量名称add
+    # 已经:0表示了是add节点的第1个输出，在加载的时候需要指定输出节点的第几个输出。所以是add:0
+    # 详见文章[节点的表示]
+    result = tf.import_graph_def(graph_def, return_elements="[add:0]")
+    print(sess.run(result))
+```
 
+在TensorFlowSharp中加载pb文件，其类似如下所示：
+```cs
+string modelFile = "C://model.pb"
+var graph = new TFGraph();
+// 从文件加载序列化的GraphDef
+var model = File.ReadAllBytes(modelFile);
+//导入GraphDef
+graph.Import(model, "");
+using (var session = new TFSession (graph))
+{
+	var runner = session.GetRunner ();
+    // 其中的graph["input"][0], graph["output"][0]指的是，input节点的第1个输出，和   output节点的第1个输出，等同于python中的input:0 output:0
+    // 其中Fetch()用于取得输出变量。
+	runner.AddInput (graph ["input"] [0], tensor).Fetch (graph ["output"] [0]);
+	var output = runner.Run ();
+	var result = output [0];
+    var val = (float [,])result.GetValue (jagged: false);
+}
+```
 
 
 
