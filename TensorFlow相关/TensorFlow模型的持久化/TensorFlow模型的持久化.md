@@ -133,11 +133,10 @@ with tf.Session() as sess:
 在python中加载pb文件如下所示：
 ```python
 from tensorflow as tf
-from tensorflow.python.platform import gfile
 with tf.Session() as sess:
     model_path = "C://model.pb"
     # 读取保存的pb文件，并且将其加载进计算图中。
-    with gfile.FastGFile(model_path, "rb") as f:
+    with tf.gfile.FastGFile(model_path, "rb") as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
     # 将graph_def中的保存的计算图加载到当前计算图中，return_elements给出了返回的张量名称add
@@ -146,6 +145,22 @@ with tf.Session() as sess:
     result = tf.import_graph_def(graph_def, return_elements="[add:0]")
     print(sess.run(result))
 ```
+也可以通过`get_tensor_by_name()`获得tensor的句柄，然后run进行运算，如：
+```python
+from tensorflow as tf
+wb_saver_path = u'C://model.pb'
+with tf.gfile.FastGFile(wb_saver_path, 'rb') as f:
+	graph_def = tf.GraphDef()
+    graph_def.ParseFromString(f.read())
+with tf.Session() as sess:
+    result = tf.import_graph_def(graph_def, name='')
+    op = sess.graph.get_tensor_by_name('Net/add:0')
+    sess.run(op, feed_dict={
+    	'Net/feed:0': batch_feed
+    })
+```
+
+*****
 
 在TensorFlowSharp中加载pb文件，其类似如下所示：
 ```cs
