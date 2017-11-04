@@ -46,6 +46,7 @@ $$
 \theta_P(x)=\min_{W,b} \frac{1}{2}||W||^2
 $$
 不满足约束条件的样本点则因为无法对正无穷求最小值而自然抛弃。
+这个时候，我们试图去解$\theta_P(x)$中的$\max_{\alpha}$我们会发现因为$L(W,b,\alpha)=\frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}$对于$\alpha$是线性的，非凸的[^1]，因此无法通过梯度的方法求得其最大值点，其最大值点应该处于可行域边界上，因此我们需要得到SVM的对偶问题进行求解。
 
 
 ****
@@ -58,7 +59,11 @@ $$
 $$
 \theta_D(x) = \max_{\alpha} \min_{W,b} L(W,b,\alpha)=\max_{\alpha} \min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
 $$
-求解$\min_{W,b} L(W,b,\alpha)$，因为$L(W,b,\alpha)$是凸函数，我们对采用求梯度的方法求解其最小值：
+同样的，我们试图去求解$\theta_D(x)$中的$\min_{W,b}$，我们会发现由于$L(W,b,\alpha)=\frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}$对于$W$来说是凸函数，因此可以通过梯度的方法求得其最小值点（即是其极小值点）。
+
+
+
+求解$\min_{W,b} L(W,b,\alpha)$，因为$L(W,b,\alpha)$是凸函数，我们对采用求梯度的方法求解其最小值（也是KKT条件中的，$\nabla_WL(W,b,\alpha)=0$和$\nabla_b L(W,b,\alpha)=0$）：
 $$
 \frac{\partial{L}}{\partial{W}}=W-\sum_{i=1}^N\alpha_iy_ix_i=0, i=1,\cdots,N
 $$
@@ -116,7 +121,7 @@ $$
 $$
 \alpha^*_i \geq0
 $$
-所以得知:
+前两个式子我们已经在求极值的时候利用了，得知:
 $$
 W^* = \sum_{i=1}^N\alpha_i^*y_ix_i
 $$
@@ -137,7 +142,13 @@ $$
 ![svm_margin][svm_margin]
 
 
+至此，我们得到了**硬间隔线性支持向量机**的数学表述形式，所谓硬间隔线性支持向量机，就是满足我之前的假设
+> 两类样本是线性可分的，总是存在一个超平面$W^Tx+b$可以将其完美分割开。
+
+但是，在现实生活中的数据往往是或本身就是非线性可分但是近似线性可分的，或是线性可分但是具有噪声的，以上两种情况都会导致在现实应用中，**硬间隔线性支持向量机**变得不再实用，因此
+
+
 
 [click]: https://github.com/FesianXu/AI_Blog/tree/master/SVM%E7%9B%B8%E5%85%B3
 [svm_margin]: ./imgs/svm_margin_2.png
-
+[^1]: 存疑，暂时自己无证明，再探究。
