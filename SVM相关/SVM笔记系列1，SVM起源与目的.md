@@ -107,7 +107,9 @@ $$
 $$
 s.t. 1-y_i(W^Tx_i+b) \leq 0, \ i=1,\cdots,N
 $$
-至此，我们得到了SVM的标准原问题表达。我们接下来将会讨论SVM原问题的对偶问题，以便于更好地解决这个最优化问题。
+至此，我们得到了SVM的标准原问题表达。注意到这个式子里的$1-y_i(W^Tx_i+b) \leq 0,$，当存在$x_i$使得$1-y_i(W^Tx_i+b) = 0$时，这个$x_i$就被称之为**支持向量**。
+
+我们接下来将会讨论SVM原问题的对偶问题，以便于更好地解决这个最优化问题。
 
 
 [click]: https://github.com/FesianXu/AI_Blog/tree/master/SVM%E7%9B%B8%E5%85%B3

@@ -3,7 +3,7 @@
 </div>
 
 # 前言
-**支持向量机的对偶问题比原问题容易解决，在符合KKT条件的情况下，其对偶问题和原问题的解相同，这里我们结合李航博士的《统计学习方法》一书和林轩田老师的《机器学习技法》中的内容，谈谈自己的一些认识。**
+**支持向量机的对偶问题比原问题容易解决，在符合KKT条件的情况下，其对偶问题和原问题的解相同，这里我们结合李航博士的《统计学习方法》一书和林轩田老师的《机器学习技法》中的内容，介绍下SVM的对偶问题。**
 **如有谬误，请联系指正。转载请注明出处。**
 *联系方式：*
 **e-mail**: `FesianXu@163.com`
@@ -21,7 +21,7 @@ $$
 $$
 s.t. 1-y_i(W^Tx_i+b) \leq 0, \ i=1,\cdots,N
 $$
-这是一个有约束的最优化问题，我们利用拉格朗日乘子法，将其转换为无约束的形式：
+这是一个有约束的最优化问题，我们利用广义拉格朗日乘子法(我们将在接下来的文章再继续讨论这个)，将其转换为无约束的形式：
 $$
 L(W,b,\alpha) = \frac{1}{2}||W||^2 + \alpha_i\sum_{i=1}^N(1-y_i(W^Tx_i+b)), \ \alpha_i \geq 0
 $$
@@ -58,7 +58,7 @@ $$
 $$
 \theta_D(x) = \max_{\alpha} \min_{W,b} L(W,b,\alpha)=\max_{\alpha} \min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
 $$
-求解$\min_{W,b} L(W,b,\alpha)$，因为$L(W,b,\alpha)$是凸函数，我们对采用求梯度的方法：
+求解$\min_{W,b} L(W,b,\alpha)$，因为$L(W,b,\alpha)$是凸函数，我们对采用求梯度的方法求解其最小值：
 $$
 \frac{\partial{L}}{\partial{W}}=W-\sum_{i=1}^N\alpha_iy_ix_i=0, i=1,\cdots,N
 $$
@@ -67,7 +67,7 @@ $$
 $$
 得出：
 $$
-W=\sum_{i=1}^N\alpha_iy_ix_i, \ \sum_{i=1}^N\alpha_iy_i=0
+W=\sum_{i=1}^N\alpha_iy_ix_i,　\sum_{i=1}^N\alpha_iy_i=0,　\alpha_i \geq0,i=1,\cdots,N
 $$
 将其代入$\theta_D(x)$，注意到$\sum_{i=1}^N\alpha_iy_i=0$,得：
 $$
@@ -79,13 +79,63 @@ $$
 整理为:
 $$
 \theta_D(x) = \max_{\alpha}
--\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)+ \sum_{i=1}^N\alpha_i, \ s.t. \ \sum_{i=1}^N\alpha_iy_i=0
+-\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)+ \sum_{i=1}^N\alpha_i
+$$
+$$
+s.t. \ \sum_{i=1}^N\alpha_iy_i=0
+$$
+$$
+\alpha_i \geq0,i=1,\cdots,N
+$$
+等价为求最小问题:
+$$
+\theta_D(x) = \min_{\alpha}
+\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i
+$$
+$$
+s.t. \ \sum_{i=1}^N\alpha_iy_i=0
+$$
+$$
+\alpha_i \geq0,i=1,\cdots,N
 $$
 
-根据Karush–Kuhn–Tucker(KKT)条件（我们以后单独介绍KKT条件），在满足KKT条件的情况下，原问题的最优解$W^*,b^*$和对偶问题的最优解$\alpha^*$是相同问题的解。因此我们根据KKT条件，得出几个等式：
+根据Karush–Kuhn–Tucker(KKT)条件（我们以后单独介绍KKT条件）,我们有：
+$$
+\nabla_WL(W^*,b^*,\alpha^*)=W^*-\sum_{i=1}^N\alpha_i^*y_ix_i=0 \Longrightarrow W^* = \sum_{i=1}^N\alpha_i^*y_ix_i
+$$
+$$
+\nabla_bL(W^*,b^*,\alpha^*) = 
+-\sum_{i=1}^N \alpha^*_i y_i=0
+$$
+$$
+\alpha^*_i(1-y_i(W^*x_i+b^*))=0
+$$
+$$
+1-y_i(W^*x_i+b^*) \leq0
+$$
+$$
+\alpha^*_i \geq0
+$$
+所以得知:
+$$
+W^* = \sum_{i=1}^N\alpha_i^*y_ix_i
+$$
+并且其中至少有一个$\alpha_j^* \gt 0$，对此$j$有，$y_j(W^*x_j+b^*)-1=0$
+代入刚才的$W^*$，我们有
+$$
+b^*=y_j-\sum_{i=1}^N\alpha^*_iy_i(x_i \cdot x_j)
+$$
+所以决策超平面为：
+$$
+\sum_{i=1}^N \alpha^*_iy_i(x_i \cdot x)+b^*=0
+$$
+分类超平面为：
+$$
+\theta(x)=sign(\sum_{i=1}^N \alpha^*_iy_i(x_i \cdot x)+b^*)
+$$
+其中$\alpha^*_i=0$的是普通向量，而$\alpha^*_i >0$的是支持向量，因为当$\alpha^*_i >0$时，我们有$1-y_i(W^*x_i+b)=0$。
 
 
 
-
-
+[click]: https://github.com/FesianXu/AI_Blog/tree/master/SVM%E7%9B%B8%E5%85%B3
 
