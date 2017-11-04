@@ -133,9 +133,11 @@ $$
 $$
 \theta(x)=sign(\sum_{i=1}^N \alpha^*_iy_i(x_i \cdot x)+b^*)
 $$
-其中$\alpha^*_i=0$的是普通向量，而$\alpha^*_i >0$的是支持向量，因为当$\alpha^*_i >0$时，我们有$1-y_i(W^*x_i+b)=0$。
+其中，我们可以观察到超平面只是依赖于$\alpha_i^*>0$的样本点$x_i$，而其他样本点对其没有影响，因此我们将$\alpha_i^*>0$对应的样本点集合$x_i$称为**支持向量**。同时，我们可以这样理解当$\alpha^*_i >0$时，我们有$1-y_i(W^*x_i+b)=0$，这个恰恰是表明了**支持向量**的函数间隔都是1，恰好和我们之前的设定一致。
+![svm_margin][svm_margin]
 
 
 
 [click]: https://github.com/FesianXu/AI_Blog/tree/master/SVM%E7%9B%B8%E5%85%B3
+[svm_margin]: ./imgs/svm_margin_2.png
 
