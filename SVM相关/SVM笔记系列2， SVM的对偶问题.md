@@ -156,6 +156,20 @@ $$
 ![soft_margin][soft_margin]
 在下一篇中，我们紧接着现在的内容，介绍**序列最小最优化算法（Sequential Minimal Optimization,SMO）**，用于求解$\theta_D(x)$，得到$\alpha^*_i$以便于得到超平面的$W^*$和$b$。我们将在番外篇介绍**软间隔线性支持向量机**，**KKT条件**和**基于kernel的支持向量机**。
 
+**这里我们要记住我们需要最优化的目的式子，我们以后将会利用这个式子。**
+$$
+\min_{\alpha}
+\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i
+$$
+$$
+s.t. \ \sum_{i=1}^N\alpha_iy_i=0
+$$
+$$
+\alpha_i \geq0,i=1,\cdots,N
+$$
+
+
+
 [click]: https://github.com/FesianXu/AI_Blog/tree/master/SVM%E7%9B%B8%E5%85%B3
 [svm_margin]: ./imgs/svm_margin_2.png
 [hard_margin]: ./imgs/hard_margin_svm.png
