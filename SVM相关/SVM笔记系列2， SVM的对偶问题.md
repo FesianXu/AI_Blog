@@ -31,7 +31,7 @@ $$
 $$
 h_j(x) = 0, j=1,\cdots,l
 $$
-假设原问题为$\theta_P(x)$。
+假设原问题为$\theta_P(x)$，并且其最优解为$P^*=\theta_P(x^*)$。
 这是一个有约束的最优化问题，我们利用广义拉格朗日乘子法(我们将在接下来的文章再继续讨论这个)，将其转换为无约束的形式：
 $$
 L(W,b,\alpha) = \frac{1}{2}||W||^2 + \sum_{i=1}^N \alpha_i (1-y_i(W^Tx_i+b)), \ \alpha_i \geq 0
@@ -73,14 +73,14 @@ $$
 $$
 \theta_P(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}, \alpha_i \geq0,i=1,\cdots,N
 $$
-设SVM的对偶问题为$\theta_D(x)$，可知道其为：
+设SVM的对偶问题为$\theta_D(\alpha)$，其最优解为$D^*=\theta_D(\alpha^*)$，可知道其为：
 $$
 g(x) = \min_{W,b} L(W,b,\alpha)=\min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
 $$
 $$
-\theta_D(x) = \max_{\alpha}g(x) = \max_{\alpha} \min_{W,b} L(W,b,\alpha)=\max_{\alpha} \min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
+\theta_D(\alpha) = \max_{\alpha}g(x) = \max_{\alpha} \min_{W,b} L(W,b,\alpha)=\max_{\alpha} \min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
 $$
-此时，我们得到了对偶问题的最大最小表述，同样的，我们试图去求解$\theta_D(x)$中的$\min_{W,b}$，我们会发现由于$L(W,b,\alpha)=\frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}$对于$W$来说是凸函数，因此可以通过梯度的方法求得其最小值点（即是其极小值点）。
+此时，我们得到了对偶问题的最大最小表述，同样的，我们试图去求解$\theta_D(\alpha)$中的$\min_{W,b}$，我们会发现由于$L(W,b,\alpha)=\frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}$对于$W$来说是凸函数，因此可以通过梯度的方法求得其最小值点（即是其极小值点）。
 
 
 
@@ -104,7 +104,7 @@ g(x) =
 $$
 整理为:
 $$
-\theta_D(x)=\max_{\alpha}g(x) = \max_{\alpha}
+\max_{\alpha}g(x) = \max_{\alpha}
 -\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)+ \sum_{i=1}^N\alpha_i
 $$
 $$
@@ -115,7 +115,7 @@ $$
 $$
 等价为求最小问题:
 $$
-\theta_D(x) = \min_{\alpha}g(x) = \min_{\alpha}
+\min_{\alpha}g(x) = \min_{\alpha}
 \frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i
 $$
 $$
