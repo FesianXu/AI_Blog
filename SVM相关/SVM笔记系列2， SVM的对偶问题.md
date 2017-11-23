@@ -16,36 +16,37 @@
 # SVM的原问题的拉格朗日乘数表示
 　　我们在上一篇博文《SVM笔记系列1，SVM起源与目的》中，谈到了SVM的原问题，这里摘抄如下：
 $$
-\min_{W,b} \frac{1}{2}||W||^2
-$$
-$$
+\min_{W,b} \frac{1}{2}||W||^2 \\
 s.t. 1-y_i(W^Tx_i+b) \leq 0, \ i=1,\cdots,N
+\tag{1.1}
 $$
 其满足形式:
 $$
-\min_{W,b} f(x)
-$$
-$$
-s.t. c_i(x) \leq0, i=1,\cdots,k
-$$
-$$
+\min_{W,b} f(x) \\
+s.t. c_i(x) \leq0, i=1,\cdots,k \\
 h_j(x) = 0, j=1,\cdots,l
+\tag{1.2}
 $$
+
 假设原问题为$\theta_P(x)$，并且其最优解为$P^*=\theta_P(x^*)$。
 这是一个有约束的最优化问题，我们利用广义拉格朗日乘子法(我们将在接下来的文章再继续讨论这个)，将其转换为无约束的形式：
 $$
 L(W,b,\alpha) = \frac{1}{2}||W||^2 + \sum_{i=1}^N \alpha_i (1-y_i(W^Tx_i+b)), \ \alpha_i \geq 0
+\tag{1.3}
 $$
 变形为：
 $$
 L(W,b,\alpha) = \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)} , \ \alpha_i \geq 0
+\tag{1.4}
 $$
 我们将会得到原问题的另一个表述为：
 $$
 f(x) = \max_{\alpha} L(W, b, \alpha)=\max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)},, \ \alpha_i \geq 0
+\tag{1.5}
 $$
 $$
 \theta_P(x) = \min_{W,b}f(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)},, \ \alpha_i \geq 0
+\tag{1.6}
 $$
 这里我觉得有必要解释下为什么$f(x)$可以表述为$\max_{\alpha} L(W, b, \alpha)$这种形式。
 假设我们有一个样本点$x_i$是不满足原问题的约束条件$1-y_i(W^Tx_i+b) \leq 0$的，也就是说$1-y_i(W^Tx_i+b) \gt 0$，那么在$\max_{\alpha}$这个环节就会使得$\alpha_i \rightarrow +\infty$从而使得$L(W,b,\alpha) \rightarrow +\infty$。如果$x_i$是满足约束条件的，那么为了求得最大值，因为$1-y_i(W^Tx_i+b) \leq 0$而且$\alpha_i \geq 0$，所以就会使得$\alpha_i = 0$。由此我们得知：
@@ -54,6 +55,7 @@ $$
 \frac{1}{2}||W||^2 & 1-y_i(W^Tx_i+b) \leq 0 满足约束条件\\
 +\infty & 1-y_i(W^Tx_i+b) \gt 0 不满足约束条件
 \end{cases}
+\tag{1.7}
 $$
 因此在满足约束的情况下，
 $$
@@ -64,6 +66,7 @@ $$
 **至此，我们得到了原问题的最小最大表述：**
 $$
 \theta_P(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}, \alpha_i \geq0,i=1,\cdots,N
+\tag{1.8}
 $$
 
 
@@ -72,13 +75,16 @@ $$
 　　从上面的讨论中，我们得知了SVM的原问题的最小最大表达形式为：
 $$
 \theta_P(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}, \alpha_i \geq0,i=1,\cdots,N
+\tag{2.1}
 $$
 设SVM的对偶问题为$\theta_D(\alpha)$，其最优解为$D^*=\theta_D(\alpha^*)$，可知道其为：
 $$
 g(x) = \min_{W,b} L(W,b,\alpha)=\min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
+\tag{2.2}
 $$
 $$
 \theta_D(\alpha) = \max_{\alpha}g(x) = \max_{\alpha} \min_{W,b} L(W,b,\alpha)=\max_{\alpha} \min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
+\tag{2.3}
 $$
 此时，我们得到了对偶问题的最大最小表述，同样的，我们试图去求解$\theta_D(\alpha)$中的$\min_{W,b}$，我们会发现由于$L(W,b,\alpha)=\frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}$对于$W$来说是凸函数，因此可以通过梯度的方法求得其最小值点（即是其极小值点）。
 
@@ -87,13 +93,16 @@ $$
 求解$\min_{W,b} L(W,b,\alpha)$，因为$L(W,b,\alpha)$是凸函数，我们对采用求梯度的方法求解其最小值（也是KKT条件中的，$\nabla_WL(W,b,\alpha)=0$和$\nabla_b L(W,b,\alpha)=0$）：
 $$
 \frac{\partial{L}}{\partial{W}}=W-\sum_{i=1}^N\alpha_iy_ix_i=0, i=1,\cdots,N
+\tag{2.4}
 $$
 $$
 \frac{\partial{L}}{\partial{b}}=\sum_{i=1}^N\alpha_iy_i=0,i=1,\cdots,N
+\tag{2.5}
 $$
 得出：
 $$
 W=\sum_{i=1}^N\alpha_iy_ix_i,　\sum_{i=1}^N\alpha_iy_i=0,　\alpha_i \geq0,i=1,\cdots,N
+\tag{2.6}
 $$
 将其代入$g(x)$，注意到$\sum_{i=1}^N\alpha_iy_i=0$,得：
 $$
@@ -105,25 +114,21 @@ $$
 整理为:
 $$
 \max_{\alpha}g(x) = \max_{\alpha}
--\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)+ \sum_{i=1}^N\alpha_i
-$$
-$$
-s.t. \ \sum_{i=1}^N\alpha_iy_i=0
-$$
-$$
+-\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)+ \sum_{i=1}^N\alpha_i \\
+s.t. \ \sum_{i=1}^N\alpha_iy_i=0 \\
 \alpha_i \geq0,i=1,\cdots,N
+\tag{2.7}
 $$
+
 等价为求最小问题:
 $$
 \min_{\alpha}g(x) = \min_{\alpha}
-\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i
-$$
-$$
-s.t. \ \sum_{i=1}^N\alpha_iy_i=0
-$$
-$$
+\frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i \\
+s.t. \ \sum_{i=1}^N\alpha_iy_i=0 \\
 \alpha_i \geq0,i=1,\cdots,N
+\tag{2.8}
 $$
+
 
 根据**Karush–Kuhn–Tucker(KKT)条件**（我们以后单独介绍KKT条件）[^2],我们有：
 $$
