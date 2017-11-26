@@ -28,8 +28,8 @@ h_j(x) = 0, j=1,\cdots,l
 \tag{1.2}
 $$
 
-假设原问题为$\theta_P(x)$，并且其最优解为$P^*=\theta_P(x^*)$。
-这是一个有约束的最优化问题，我们利用广义拉格朗日乘子法(我们将在接下来的文章再继续讨论这个)，将其转换为无约束的形式：
+假设原问题为$\theta_P(x)$，并且其最优解为$p^*=\theta_P(x^*)$。
+这是一个有约束的最优化问题，我们利用广义拉格朗日乘子法(具体移步[《拉格朗日乘数法和KKT条件的直观解释》][ref_1])，将其转换为无约束的形式：
 $$
 L(W,b,\alpha) = \frac{1}{2}||W||^2 + \sum_{i=1}^N \alpha_i (1-y_i(W^Tx_i+b)), \ \alpha_i \geq 0
 \tag{1.3}
@@ -77,7 +77,7 @@ $$
 \theta_P(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}, \alpha_i \geq0,i=1,\cdots,N
 \tag{2.1}
 $$
-设SVM的对偶问题为$\theta_D(\alpha)$，其最优解为$D^*=\theta_D(\alpha^*)$，可知道其为：
+设SVM的对偶问题为$\theta_D(\alpha)$，其最优解为$d^*=\theta_D(\alpha^*)$，可知道其为：
 $$
 g(x) = \min_{W,b} L(W,b,\alpha)=\min_{W,b} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}
 \tag{2.2}
@@ -130,7 +130,7 @@ s.t. \ \sum_{i=1}^N\alpha_iy_i=0 \\
 $$
 
 
-根据**Karush–Kuhn–Tucker(KKT)条件**（我们以后单独介绍KKT条件）[^2],我们有：
+根据**Karush–Kuhn–Tucker(KKT)条件**[^2],我们有：
 $$
 \nabla_WL(W^*,b^*,\alpha^*)=W^*-\sum_{i=1}^N\alpha_i^*y_ix_i=0 \Longrightarrow W^* = \sum_{i=1}^N\alpha_i^*y_ix_i
 \tag{2.9}
@@ -183,9 +183,9 @@ $$
 但是，在现实生活中的数据往往是或本身就是非线性可分但是近似线性可分的，或是线性可分但是具有噪声的，以上两种情况都会导致在现实应用中，**硬间隔线性支持向量机**变得不再实用，因此我们将会在后续讨论用以解决近似线性可分的**软间隔线性支持向量机**和**基于kernel的支持向量机**，后者可以解决非线性可分的问题。下图表示了**硬间隔线性支持向量机**和**软间隔支持向量机**之间的区别。
 ![hard_margin][hard_margin]
 ![soft_margin][soft_margin]
-在下一篇中，我们紧接着现在的内容，介绍**序列最小最优化算法（Sequential Minimal Optimization,SMO）**，用于求解$\theta_D(x)$，得到$\alpha^*_i$以便于得到超平面的$W^*$和$b$。我们将在番外篇介绍**软间隔线性支持向量机**，**KKT条件**和**基于kernel的支持向量机**。
+在下一篇中，我们紧接着现在的内容，介绍**序列最小最优化算法（Sequential Minimal Optimization,SMO）**，用于求解$\theta_D(x)$，得到$\alpha^*_i$以便于得到超平面的$W^*$和$b$。我们将在其他文章中介绍**软间隔线性支持向量机**，**广义拉格朗日乘数法**，**KKT条件**和**基于kernel的支持向量机**。
 
-**这里我们要记住我们需要最优化的目的式子，我们以后将会利用这个式子。**
+**这里我们要记住我们需要最优化的目的式子，我们以后将会反复提到这个式子。**
 $$
 \min_{\alpha}
 \frac{1}{2}\sum_{i=1}^N \sum_{j=1}^N \alpha_i \alpha_jy_iy_j(x_i \cdot x_j)- \sum_{i=1}^N\alpha_i
@@ -204,5 +204,8 @@ $$
 [hard_margin]: ./imgs/hard_margin_svm.png
 [soft_margin]: ./imgs/soft_margin_svm.png
 
-[^1]: 存疑，暂时自己无证明，再探究。
-[^2]: 事实上，如果$\theta_D(x)$的$L(W,b,\alpha)$满足KKT条件，那么在SVM这个问题中，$W^*$和$b^*$和$\alpha^*_i$是原问题和对偶问题的解的充分必要条件是满足KKT条件，具体见《统计学习方法》附录。
+
+[ref_1]: http://blog.csdn.net/loseinvain/article/details/78624888
+
+[^1]: 易证明。参考wikipedia的凸函数定义。
+[^2]: 事实上，如果$\theta_D(x)$的$L(W,b,\alpha)$满足KKT条件，那么在SVM这个问题中，$W^*$和$b^*$和$\alpha^*_i$同时是原问题和对偶问题的解的充分必要条件是满足KKT条件，具体见《统计学习方法》附录和[《拉格朗日乘数法和KKT条件的直观解释》](http://blog.csdn.net/loseinvain/article/details/78624888)。
