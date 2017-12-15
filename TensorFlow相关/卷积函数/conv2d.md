@@ -10,8 +10,8 @@ conv2d(
     name=None
 )
 ```
-1. `input`是一个4d输入[batch_size, in_height, in_width, n_channels]，表示图片的批数，大小和通道。
-2. `filter`是一个4d输入[filter_height, filter_width, in_channels, out_channels]，表示kernel的大小，输入通道数和输出通道数，其中**输出通道数表示从上一层提取多少特征**。
+1. `input`是一个4d输入[`batch_size`, `in_height`, `in_width`, `n_channels`]，表示图片的批数，大小和通道。
+2. `filter`是一个4d输入[`filter_height`, `filter_width`, `in_channels`, `out_channels`]，表示kernel的大小，输入通道数和输出通道数，其中**输出通道数表示从上一层提取多少特征**。
 3. `strides`是一个1d输入，长度为4，其中stride\[0]和stride\[3]必须为1，一般格式为[1, stride\[1], stride\[2], 1]，在大部分情况下，因为在height和width上的步进设为一样，因此通常为**[1, stride, stride, 1]**。
 **计算公式为：**
 $$
@@ -20,7 +20,7 @@ output[b, i, j, k] =
 $$
 其中b为batch_id, i,j分别是图片的像素索引, k是输出通道的索引，q是输入通道的索引，**从公式可以看出，conv2d是将一个图片的所有输入通道卷积合成一个输出通道的**，这个和`tf.nn.depthwise_conv2d`有所不同。
 
-4. `padding`是一个字符串输入，分为'SAME'和'VALID'分别表示是否需要填充，因为卷积完之后因为周围的像素没有卷积到，因此一般是会出现卷积完的输出尺寸小于输入的现象的，这时候可以利用填充如：
+4. `padding`是一个字符串输入，分为`SAME`和`VALID`分别表示是否需要填充，因为卷积完之后因为周围的像素没有卷积到，因此一般是会出现卷积完的输出尺寸小于输入的现象的，这时候可以利用填充如：
 <table border="2">
   <tr>
     <th>![no_padding_no_strides][no_padding_no_strides]</th>
