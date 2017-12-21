@@ -48,12 +48,7 @@ i, a, b = tf.while_loop(cond, body, (2, 1, 1))
 print(tf.Session().run(b))
 ```
 
-
-
-This will print 5. tf.while_loops takes a condition function, and a loop body function, in addition to initial values for loop variables. These loop variables are then updated by multiple calls to the body function until the condition returns false.
-
-Now imagine we want to keep the whole series of Fibonacci sequence. We may update our body to keep a record of the history of current values:
-这个将会输出5， `tf.while_loop()`需要一个条件函数和一个循环体函数。
+这个将会输出5， `tf.while_loop()`需要一个条件函数和一个循环体函数，还需对循环变量的初始值。这些循环变量在每一次循环体函数调用完之后都会被更新一次，直到这个条件返回False为止。现在想象我们想要保存这个斐波那契序列，我们可能更新我们的循环体函数以至于可以纪录当前值的历史（**译者：也就是说需要输出一个序列而不仅仅是最后一个值**）。
 
 ```python
 n = tf.constant(5)
@@ -69,7 +64,7 @@ i, a, b, c = tf.while_loop(cond, body, (2, 1, 1, tf.constant([1, 1])))
 print(tf.Session().run(c))
 ```
 
-Now if you try running this, TensorFlow will complain that the shape of the the fourth loop variable is changing. So you must make that explicit that it's intentional:
+当你尝试运行这个程序的时候，TensorFlow将会“抱怨”说**第四个循环变量的形状正在改变**。所以你必须要把“改变它的形状”这个事儿变得是有意为之的（**显式地定义**），而不是意外的编码错误，这样系统才会认可你的行为（**So you must make that explicit that it's intentional**）。
 
 ```python
 i, a, b, c = tf.while_loop(
@@ -80,7 +75,8 @@ i, a, b, c = tf.while_loop(
                       tf.TensorShape([None])))
 ```
 
-This is not only getting ugly, but is also somewhat inefficient. Note that we are building a lot of intermediary tensors that we don't use. TensorFlow has a better solution for this kind of growing arrays. Meet tf.TensorArray. Let's do the same thing this time with tensor arrays:
+
+这个使得代码变得丑陋不堪，而且变得有些低效率。注意到我们这个操作在代码中够早了一大堆我们并不需要使用的中间张量。TF对于这种增长式的数组，其实有一个更好的解决方案，让我们会会`tf.TensorArray`吧，仅仅是通过了张量数组的形式，它能使得一切变得简单有效：
 
 ```python
 n = tf.constant(5)
@@ -102,9 +98,7 @@ c = c.stack()
 
 print(tf.Session().run(c))
 ```
-TensorFlow while loops and tensor arrays are essential tools for building complex recurrent neural networks. As an exercise try implementing beam search using tf.while_loops. Can you make it more efficient with tensor arrays?
-
-
+（**译者：TensorArray是TF动态尺度的数组，刻意为动态迭代运算设计的，其中的write方法指的是在某个`index`位置上写入特定值，stack方法是将TensorArray返回为一个层叠的张量。**）
 
 
 
