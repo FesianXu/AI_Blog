@@ -183,12 +183,60 @@ $$
 
 这就是所谓的**核技巧**(Kernel trick)[12]。
 
+**PS:**为了理解为什么是从原始的有限维的特征空间映射到无限维的希尔伯特空间，我们从式子(3.15)其实不难发现，$\mathbf{x} \in \mathbb{R}^n$，$\sqrt{\lambda_i}\Phi_i(\mathbf{x}) \in \mathbb{R}$，而我们的$i \rightarrow \infty$，因此可以看成映射成了无限维的特征。
+
 
 ## 3.5 高斯核函数的无限维映射性质
-有效的核函数，也就是对称半正定的核函数有很多，而且有一定的性质可以扩展组合这些核函数[6]，这一块内容比较多，我们以后独立一篇文章继续讨论。这里我们主要看下使用最多的核函数，**高斯核函数**也经常称之为**径向基函数**。
+有效的核函数，也就是对称半正定的核函数有很多，而且有一定的性质可以扩展组合这些核函数[6]，这一块内容比较多，我们以后独立一篇文章继续讨论。这里我们主要看下使用最多的核函数，**高斯核函数**，也经常称之为**径向基函数**。
+
+高斯核函数的数学表达形式如下所示：
+$$
+\mathcal{k}(\mathbf{x}, \mathbf{y}) = \exp(-||\mathbf{x}-\mathbf{y}||^2/2\sigma^2)
+\tag{3.17}
+$$
+我们现在对(3.17)进行变形(这里为了方便假设$\mathbf{x},\mathbf{y}$是一维的)：
+$$
+\begin{align}
+\exp(-||x-y||^2/2\sigma^2) &= \exp(-\lambda||x-y||^2) \\
+&= \exp(-\lambda x^2+2\lambda xy-\lambda y^2) \\
+&= \exp(-\lambda x^2) \exp(-\lambda y^2) \exp(2\lambda xy)
+\end{align}
+\tag{3.18}
+$$
+利用泰勒展开[14]对式子(3.18)中的$\exp(2\lambda xy)$进行展开，有:
+$$
+\begin{align}
+\exp(2\lambda xy) &= \sum_{i=1}^{\infty} \dfrac{(2\lambda xy)^i}{i!} \\
+&= \sum_{i=1}^{\infty} \sqrt{\dfrac{2^i \lambda}{i!}}x \cdot \sqrt{\dfrac{2^i \lambda}{i!}}y
+\end{align}
+\tag{3.19}
+$$
+现在结合(3.18)和(3.19)，我们有：
+$$
+\begin{align}
+\exp(-||x-y||^2&/2\sigma^2) \\
+&= \sum_{i=1}^{\infty} \sqrt{\dfrac{2^i \lambda}{i!}} \exp{(-\lambda x^2)}x \cdot \sqrt{\dfrac{2^i \lambda}{i!}} \exp{(-\lambda y^2)}y
+\end{align}
+\tag{3.20}
+$$
+用序列$\mathbf{x} = \{\sqrt{\dfrac{2^1 \lambda}{1!}} \exp{(-\lambda x^2)}x, \sqrt{\dfrac{2^2 \lambda}{2!}} \exp{(-\lambda x^2)}x, \cdots\}$, $\mathbf{y}=\{\sqrt{\dfrac{2^1 \lambda}{1!}} \exp{(-\lambda y^2)}y, \sqrt{\dfrac{2^2 \lambda}{2!}} \exp{(-\lambda y^2)}y,\cdots\}$
+这两个都是无限维向量，也即是一个映射函数$\phi(\cdot)$。于是式子(3.20)可以改写为:
+$$
+\exp(-||x-y||^2/2\sigma^2) = \mathbf{x}^T \mathbf{y} = \phi(\mathbf{x})^T \phi(\mathbf{y})
+\tag{3.21}
+$$
+看，我们常用的高斯核函数正是一个无限维映射的核函数。
 
 
+****
 
+# 4. 总结
+我们前面对再生核希尔伯特空间进行了简单的介绍，同时了解了无限维映射的核函数，高斯核函数，事实上，我们原始的SVM对偶问题推导中的$(x_i \cdot x_j)$也可以看成一种核函数，只不过这是个线性核函数而已，映射到了原始的特征空间，有：
+$$
+\mathcal{k}(\mathbf{x}, \mathbf{y}) = \mathbf{x}^T \mathbf{y}
+\tag{4.1}
+$$
+在后续的文章中，我们将会介绍更多的核函数，如多项式核函数对数sigmoid核函数等，同时在后续的文章中，我们也将继续探讨关于基函数的一些应用。
 
 
 
@@ -211,6 +259,7 @@ $$
 [11]. [机器学习中的数学(5)-强大的矩阵奇异值分解(SVD)及其应用](http://www.cnblogs.com/LeftNotEasy/archive/2011/01/19/svd-and-applications.html)
 [12]. [A Story of Basis and Kernel – Part II: Reproducing Kernel Hilbert Space](http://iera.name/a-story-of-basis-and-kernel-part-ii-reproducing-kernel-hilbert-space/)
 [13]. [Hilbert space](https://en.wikipedia.org/wiki/Hilbert_space)
+[14]. [函数的泰勒(Taylor)展开式](https://blog.csdn.net/qq_38906523/article/details/79851654)
 
 
 
