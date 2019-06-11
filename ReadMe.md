@@ -14,6 +14,10 @@ this repository mainly includes:
 
 Please indicate the github source when you need to refer the notes. Thanks.
 
+Also, the updated articles will be firstly published on CSDN. The website address is
+
+<https://blog.csdn.net/LoseInVain>
+
 # Reference
 
 [1]. https://www.typora.io/
