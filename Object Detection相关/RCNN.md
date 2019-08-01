@@ -41,7 +41,8 @@ RCNN的思路虽然很简单，看起来不值得独立写成一篇博客，但�
 2. 这里使用的CNN如何设计
 3. 输入的图片该怎么进行尺寸统一化
 4. 类别分类器的设计
-5. 训练细节等
+5. 正负样本挑选
+6. 训练细节等
 
 不过在陷入细节之前，我们要明确，整个RCNN的流程如：
 
@@ -100,13 +101,21 @@ graph LR
         Fig 2.4 T-net的网络结构示意图。
 </div>
 
+RCNN利用T-net从每个proposal中提取一个4096维的特征，我们会发现这里的4096维比起以前传统方法的，比如UVA detection system [3]，维度少了两个数量级，分别是4k和360k，因此大幅度提高了运算速度。
 
+显然，这个T-net首先需要预训练，一般是在ImageNet数据集（ILSVRC2012 classification ）上利用图片级的标注（比如图片分类任务，不能利用其bbox的标签数据）先进行预训练。为了适应OD任务中$N$个物体的分类，需要将T-net的最后一层的1000类分类的层更换成$N+1$层，其中加上一表示背景。
 
-
+我们注意到最后一层的池化层，也即是$Pool_{5}$层，其输出特征图尺寸为$6 \times 6 \times 256=9216$维（按照论文中报告的，和Fig 2.4所示不同）。
 
 
 
 ## 类别分类器为什么不使用softmax
+
+那么在上一步得到了proposal的特征之后，下一步就是拿到分类器中给每个proposal进行分类了。这里的分类器采用了线性SVM分类器，也即是给每个类别都指定了一个二类线性SVM分类器，用于判定是否是本类，见Fig 2.1。那么这里为什么不用softmax分类器而是采用传统的SVM呢？作者在实验中发现如果更改为softmax，那么在VOC 2007数据集上的表现将从54.2%下降到50.9%，作者认为是因为这里的正负样本采样，并没有特别强调精细的位置关系，因此softmax是在随机采样的负样本中进行训练的，而不是如同在SVM策略中，可以采用所谓的难负样本（hard negatives）进行训练。
+
+
+
+
 
 
 
@@ -118,11 +127,36 @@ graph LR
 
 # bbox回归
 
+用了以上的策略，我们的RCNN的表现已经能够超越以前的工作了，但是还不够。我们知道根据selective search选出来的侯选框直接决定了后续的物体的bbox的标定和类别的决定，但是selective search是一个静态过程，是不能学习的，也是不能调整的，这就直接决定了其bbox的效果固定了。这个很糟糕，应该是可以提高的。因此作者借鉴DPM模型[7]中的策略，对bbox进行回归，期待可以微调bbox的位置，取得更好效果。如Fig 3.1所示，我们将$N$个训练样本表示为$\{(P^i, G^i)\}_{i=1,\cdots,N}$，其中$P^{i}=(P^i_x, P^i_y, P^i_w, P^i_h)$表示第$i$个样本的proposal中心的坐标$(P_x, P_y)$和proposal的长宽。对应的，$G^{i}=(G^i_x, G^i_y, G^i_w, G^i_h)$ 表示的是真实的标签的bbox的坐标和长宽，因此在这个回归任务中，希望学习到函数$f(\cdot)$，使得$f(P) \rightarrow G$。
+
+![bbox_reg][bbox_reg]
+
+<div align='center'>
+    <b>
+        Fig 3.1 bbox的回归和更新。
+</div>
+
+我们将这个$f(\cdot)$拆解成四个函数，分别是$d_x(P), d_y(P), d_w(P), d_h(P)$。最后我们有对bbox回归后的估计结果为:
+$$
+\begin{align}
+\hat{G}_x &= P_wd_x(P)+P_x \\
+\hat{G}_y &= P_hd_y(P)+P_y \\
+\hat{G}_w &= P_w \exp(d_w(P)) \\
+\hat{G}_h &= P_h \exp(d_h(P))
+\end{align}
+\tag{3.1}
+$$
+为了简单起见，这里的$d_{\star}(P)$采用的是线性回归，用池化层$Pool_{5}$的输出作为$P$的特征，也即是表示为$\phi_5(P)$，因此对于$\star = x,y,w,h$分别来说，都有$d_{\star}(P) = \hat{\mathbf{w}_{\star}}^T \phi_5 (P)$。
+
+最后用loss去描述，为:
+$$
+\mathbf{w}_{\star} = \arg\min_{\hat{\mathbf{w}_{\star}}} \sum_{i}^{N}(t^{i}_{\star}-\hat{\mathbf{w}_{\star}}^T \phi_5(P^i))^2+\lambda||\hat{\mathbf{w}_{\star}}||^2
+\tag{3.2}
+$$
 
 
 
 
-# 和之前工作相比
 
 # Reference
 
@@ -138,6 +172,9 @@ graph LR
 
 [6]. K. Simonyan and A. Zisserman. Very Deep Convolutional Networks for Large-Scale Image Recognition. arXiv preprint, arXiv:1409.1556, 2014. 
 
+[7]. P. Felzenszwalb, R. Girshick, D. McAllester, and D. Ramanan. Object detection with discriminatively trained part
+based models. TPAMI, 2010.  
+
 
 
 
@@ -149,7 +186,7 @@ graph LR
 [norm]: ./imgs/norm.jpg
 [alexnet]: ./imgs/alexnet.jpg
 
-
+[bbox_reg]: ./imgs/bbox_reg.png
 
 
 
