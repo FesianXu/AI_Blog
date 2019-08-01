@@ -7,13 +7,9 @@
 **如有谬误，请联系指正。转载请注明出处。**
 
 *联系方式：*
-
 **e-mail**: `FesianXu@163.com`
-
 **QQ**: `973926198`
-
 **github**: `https://github.com/FesianXu`
-
 **有关代码开源**: [click][click]
 
 *****
@@ -73,7 +69,6 @@ $$
 \theta_P(x) = \min_{W,b} \max_{\alpha} L(W, b, \alpha)=\min_{W,b} \max_{\alpha} \frac{1}{2}||W||^2 + \sum_{i=1}^N {\alpha_i}-\sum_{i=1}^N{\alpha_iy_i(W^Tx_i+b)}, \alpha_i \geq0,i=1,\cdots,N
 \tag{1.8}
 $$
-
 
 ****
 # SVM的对偶问题

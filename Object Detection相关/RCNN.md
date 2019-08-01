@@ -8,7 +8,10 @@
 
 本土豆最近在做Human-Object Interaction（HOI）任务的研究，其中有用到物体识别的模块，因此也打算趁此机会把Object Detection（OD）的拿来系统学习下，并且在此纪录下笔记。土豆我深知OD已经在网络上有着很多中文博客资料了，但是个人觉得很多都不够详细，不够入门级，因此我尽量在此博客里面做到提供更多的细节等，希望尽量做到初学者友好。不过毕竟土豆在OD还是初学者，如果文章有纰漏的地方，请联系指出，谢谢。
 
-
+*联系方式：*
+**e-mail**: `FesianXu@gmail.com`
+**QQ**: `973926198`
+**github**: `https://github.com/FesianXu`
 
 ----
 
@@ -113,17 +116,70 @@ RCNN利用T-net从每个proposal中提取一个4096维的特征，我们会发�
 
 那么在上一步得到了proposal的特征之后，下一步就是拿到分类器中给每个proposal进行分类了。这里的分类器采用了线性SVM分类器，也即是给每个类别都指定了一个二类线性SVM分类器，用于判定是否是本类，见Fig 2.1。那么这里为什么不用softmax分类器而是采用传统的SVM呢？作者在实验中发现如果更改为softmax，那么在VOC 2007数据集上的表现将从54.2%下降到50.9%，作者认为是因为这里的正负样本采样，并没有特别强调精细的位置关系，因此softmax是在随机采样的负样本中进行训练的，而不是如同在SVM策略中，可以采用所谓的难负样本（hard negatives）进行训练。
 
+这里的采用的SVM可以用一个权值矩阵表达，大小为$4096 \times N$， 其中$N$表示的是类别数量，$4096$表示的是CNN输出的特征维度。那么因为一共有2000个侯选框，其实最后分类进行的是矩阵乘法 如形状为$ 2000 \times 4096$ 和形状为 $4096 \times N$的矩阵的乘法。最后得到$2000 \times N$也就是对于所有侯选框的类别打分。
+
+
+
+## 正负样本采样策略
+
+为了训练SVM和对CNN进行OD任务相关的Fine-Tune（毕竟CNN是在物体分类任务上预训练的，不能很好适应OD任务特性），我们需要制定策略去对正负样本进行采样。
+
+注意到对于这两种训练，其对正负样本的定义是不同的。
+
+### 对于SVM训练而言
+
+由于SVM是二分类器，因此需要对每个类独立训练一个SVM。
+
+考虑到对一个二类分类器对车进行分类，如果proposal完全包含了车，那么当然，这个判断为正类；如果proposal是和车完全无关的事物，那么当然，其判断为负类。但是，如果是proposal一部分包含了车，一部分没有包含呢？这个时候需要依靠其proposal和真实的bbox的IoU的大小进行判断，小于这个阈值的视为负类，而真实的bbox则视为正类，这里根据实验设置为0.3（当然，可能会依据使用场合而调整）。
+
+因此，依据这个简单的策略，对于每个类都划分了正类。因为SVM属于稀疏核方法，需要记忆住一部分的支持向量数据，因此如果将所有训练数据一次性喂进去模型，那么内存是撑不住的，因此作者使用了所谓的难负类挖掘方法（hard negative mining method）[8] 去找出最难分类正确的负类进行代表整个负类集合（因为一般来说，对于每个类都是负类的proposal要远大于正类的proposal数量。）
+
+| 样本   | 来源                                            |
+| ------ | ----------------------------------------------- |
+| 正样本 | Ground Truth                                    |
+| 负样本 | Ground Truth与proposal相交IoU 小于0.3的proposal |
+
+
+
+### 对于CNN的fine tune而言
+
+对于CNN的fine tune来说，正负样本的采样会复杂一点。
+
+| 样本   | 来源                                           |
+| ------ | ---------------------------------------------- |
+| 正样本 | Ground Truth与proposal相交IoU大于0.5的proposal |
+| 负样本 | 与Ground Truth相交IoU小于等于0.5的proposal     |
+
+我们发现因为正样本数量远小于负样本数量，因此不单单采用了ground truth的bbox，而且与其IoU大于0.5的proposal都被当为了正样本，以此增加了正样本的数量。（文章说提高了30倍的正样本数）
+
+
+
+### 对于bbox 回归任务而言
+
+| 样本   | 来源                                   |
+| ------ | -------------------------------------- |
+| 正样本 | 与ground truth相交IoU大于0.6的proposal |
 
 
 
 
 
+## 非极大抑制 NMS
 
-## 其他训练细节等
+在进行完了以上的一系列步骤后，我们现在已经按理来说对2000个proposal进行了分类了，分类出$N+1$个类。那么现在我们的情况可能如Fig 2.5所示，对于某个特定的类，比如猫，周围有一堆proposal，我们需要综合这若干个proposal的信息以得出一个最后的bbox预测结果，我们通常这个时候采用非极大抑制(Non Maximum suppression)。
+
+![nms][nms]
+
+<div align='center'>
+    <b>
+        Fig 2.5 非极大抑制以汇聚侯选框，以得到最后的bbox结果。
+</div>
+
+其操作很简单，对于某个类的proposal，我们知道每个proposal都会有对这个类别的打分，视为置信度，如果两个proposal之间的IoU大于一个阈值，则选取打分最高的留下来作为proposal，而另一个删除。若IoU小于这个阈值，那么就融合这两个proposal的并集作为结果。
 
 
 
-
+-----
 
 # bbox回归
 
@@ -146,6 +202,8 @@ $$
 \end{align}
 \tag{3.1}
 $$
+我们可以看到对于坐标$x,y$而言，其是用求增量的形式进行的，而对于长宽$w,h$则是直接的缩放。
+
 为了简单起见，这里的$d_{\star}(P)$采用的是线性回归，用池化层$Pool_{5}$的输出作为$P$的特征，也即是表示为$\phi_5(P)$，因此对于$\star = x,y,w,h$分别来说，都有$d_{\star}(P) = \hat{\mathbf{w}_{\star}}^T \phi_5 (P)$。
 
 最后用loss去描述，为:
@@ -154,9 +212,34 @@ $$
 \tag{3.2}
 $$
 
+在这个形式中，因为我们的目标$t_{\star}$可以表达成：
+$$
+\begin{align}
+t_x &= (G_x-P_x)/P_w \\
+t_y &= (G_y-P_y)/P_h \\
+t_w &= \log(G_w/P_w) \\
+t_h &= \log(G_h/P_h)
+\end{align}
+\tag{3.3}
+$$
+因此可以将其描述为标准的最小二乘法问题，求得其闭式解。
+
+在实验中发现，这里的正则系数$\lambda$选择很重要，这里选择为1000。还有个问题我们要注意到的就是如果当这个$P$和$G$偏差的很大的时候，那么这个回归任务其实是没有太大意义的，只有当两者比较接近时，才能提供足够的优化效果。那么为了筛选出这个所谓的“足够接近”，作者在训练时，将proposal和真实的bbox的IoU(Intersection over Union)超过一定的阈值时（这里选择0.6），才认为是有效的可以进行回归的proposal，其他全部去掉。
+
+在测试阶段，我们可以对所有的proposal进行打分，然后一次性预测其回归后的新的检测窗口的位置。但其实也是可以进行迭代的，比如反复地进行打分，然后回归新的窗口，然后对新的窗口再打分再预测，直到收敛为止。然而，作者发现这个迭代并不能提高性能。
+
+实验发现加入bbox回归这个模块可以大幅提高性能，如Fig 3.2所示。
+
+![bbresult][bbresult]
+
+<div align='center'>
+    <b>
+        Fig 3.2 在VOC 2007上的实验结果，FT表示进行了Fine Tune的CNN，BB表示进行了bbox的回归，我们可以发现加入了bbox回归之后，其mAP提高了将近4%。
+</div>
 
 
 
+-----
 
 # Reference
 
@@ -175,7 +258,10 @@ $$
 [7]. P. Felzenszwalb, R. Girshick, D. McAllester, and D. Ramanan. Object detection with discriminatively trained part
 based models. TPAMI, 2010.  
 
+[8]. P. Felzenszwalb, R. Girshick, D. McAllester, and D. Ramanan. Object detection with discriminatively trained part
+based models. TPAMI, 2010 
 
+[9]. https://blog.csdn.net/weixin_39306118/article/details/89763646
 
 
 
@@ -188,7 +274,7 @@ based models. TPAMI, 2010.
 
 [bbox_reg]: ./imgs/bbox_reg.png
 
+[bbresult]: ./imgs/bbresult.jpg
 
-
-
+[nms]: ./imgs/nms.png
 
