@@ -169,6 +169,28 @@ $$
 
 这里的$\mathbf{R} [\mathbf{I} | -\mathbf{C}]$称之为外参数(extrinsic parameters)，这些参数描述了如何将世界坐标系的实体3D点转换到以相机坐标系描述的3D点。
 
+那么总结来说，其实对于坐标系的平移和旋转，我们可以用下面的几副图来表示：
+
+![p1][p1]
+
+<div align='center'>
+    首先，我们有两个不同的坐标系，左边的世界坐标系(X,Y,Z)和右边的相机坐标系(u,v,w)
+</div>
+
+![p2][p2]
+
+<div align='center'>
+    然后，我们通过将两者的原点O和C以平移的方式挪到一起，我们通过平移矩阵T去实现。
+</div>
+
+![p3][p3]
+
+![p4][p4]
+
+<div align='center'>
+    最后，利用旋转矩阵，将其进行坐标轴的旋转和对齐即可。
+</div>
+
 
 
 -----
@@ -310,6 +332,8 @@ $$
 
 [2].  Forsyth D , JeanPonce, 福赛斯, et al. Computer vision : a modern approach[M]. 电子工业出版社, 2012. 
 
+[3]. 电子科技大学自动化学院 杨路 老师 计算机视觉课程课件。
+
 
 
 
@@ -321,3 +345,8 @@ $$
 [central_proj]: ./imgs/central_proj.jpg
 
 [skewness]: ./imgs/skewness.jpg
+[p1]: ./imgs/p1.jpg
+
+[p2]: ./imgs/p2.jpg
+[p3]: ./imgs/p3.jpg
+[p4]: ./imgs/p4.jpg
