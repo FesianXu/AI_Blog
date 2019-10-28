@@ -159,7 +159,6 @@ y \\
 f
 \end{matrix}
 \right] = 0 \\
-
 & \Rightarrow y = y^{\prime}
 \end{aligned}
 \tag{2.2}
@@ -210,13 +209,62 @@ $$
 我们到现在算是对图像矫正有了直观上的印象，接下来我们尝试用算法去描述这个过程。图像矫正算法主要分四步。
 
 1. 用旋转矩阵$\mathbf{R}_{\mathrm{rec}}$旋转左相机，使得左成像平面的极点到无限远处。
+
 2. 用和第一步相同的旋转矩阵旋转右相机。
+
 3. 用外参数中的$\mathbf{R}$旋转继续旋转右相机。
+
 4. 对坐标系调整尺度。
 
-我们首先需要确定旋转矩阵$\mathbf{R}_{\mathrm{rec}}$。
+我们首先需要确定旋转矩阵$\mathbf{R}_{\mathrm{rec}}$。为了确定这个矩阵，我们需要构造一组彼此正交的单位向量$\mathbf{e}_1, \mathbf{e}_2, \mathbf{e}_3$。我们一般选择以其中一个焦点为原点构建，选择$OO^{\prime} = \mathbf{T} = (T_x, T_y, T_z)^{\mathrm{T}}$作为一个基底，然后进行单位化，我们有：
+$$
+\mathbf{e}_1 = \dfrac{\mathbf{T}}{||\mathbf{T}||}
+$$
+构造$\mathbf{e}_2$则只有和$\mathbf{e}_1$正交并且是单位向量这约束，因此比较任意，如：
+$$
+\mathbf{e}_2 = \dfrac{1}{\sqrt{T_x^2+T_y^2}} (-T_y, T_x, 0)^{\mathrm{T}}
+$$
+容易定义:
+$$
+\mathbf{e}_3 = \mathbf{e}_1 \times \mathbf{e}_2
+$$
+![otho][otho]
 
+<div align='center'>
+    <b>
+        Fig 2.7 构建出正交的单位向量，如绿色线段所示。
+    </b>
+</div>
 
+因此旋转矩阵为:
+$$
+\mathbf{R}_{\mathrm{rec}} = 
+\left(
+\begin{matrix}
+\mathbf{e}_1^{\mathrm{T}} \\ 
+\mathbf{e}_2^{\mathrm{T}} \\
+\mathbf{e}_3^{\mathrm{T}}
+\end{matrix}
+\right)
+$$
+然后设置左右摄像机的旋转矩阵
+$$
+\begin{aligned}
+\mathbf{R}_{l} &= \mathbf{R}_{\mathrm{rec}} \\
+\mathbf{R}_{r} &= \mathbf{R} \mathbf{R}_{\mathrm{rec}}
+\end{aligned}
+$$
+其中的$\mathbf{R}$是外参数的旋转矩阵。
+
+随后进行旋转和调整坐标系尺度，如：对于左相机的点$\mathbf{p}_l = [x,y,f]^{\mathrm{T}}$，计算出$\mathbf{R}_l \mathbf{p}_l = [x^{\prime},y^{\prime},z^{\prime}]$，随后计算器调整后的坐标系，最终有:
+$$
+\mathbf{p}_l^{\prime} = \dfrac{f}{z^{\prime}} [x^{\prime},y^{\prime},z^{\prime}]
+$$
+对于右相机，其操作相同。
+
+最后的矫正结果展示如：
+
+![rec][rec]
 
 
 
@@ -254,3 +302,11 @@ $$
 
 [ex2]: ./imgs/ex2.jpg
 [inf_epipolar]: ./imgs/inf_epipolar.jpg
+[otho]: ./imgs/otho.png
+
+[rec]: ./imgs/rec.jpg
+
+
+
+
+
