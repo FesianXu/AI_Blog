@@ -244,6 +244,123 @@
     </b>
 </div>
 
+----
+
+### 3. C3D & 注意力机制
+
+> Describing Videos by Exploiting Temporal Structure Yao et al.
+> Submitted on 25 April 2015
+> [Arxiv Link](https://arxiv.org/abs/1502.08029)
+
+**关键贡献点**：
+
+- 新颖的3D CNN-RNN编码器-解码器结构，这个结构可以提取局部的时空信息。
+- 在CNN-RNN编码器-解码器框架中使用了注意力机制去提取全局的上下文信息。
+
+**解释**：
+
+尽管这个工作并不是和动作识别直接相关的，它却是视频表征中的一个代表性工作。在这个工作中，作者使用了一个3D CNN+LSTM网络结构作为基础架构去进行视频描述任务。在整个基础之上，作者使用了一个预训练后的3D CNN网络以提升性能。
+
+**算法**：
+
+整个工作的设置几乎和在LRCN中描述的编码器-解码器结构一样，除了存在两点区别：
+
+1. 视频片段的**3D CNN特征图**和同样的视频片段的**经过层叠的2D特征图**将会拼接在一起以提高对视频帧的表征能力，而并不是简单地把3D CNN的特征图传递到LSTM后进行时序建模。注意：在这里使用的2D和3D CNN是经过预训练的，因此整个过程并不是像在LRCN中一样端到端训练的。
+2. 与之前的工作简单的对所有片段的预测得分进行平均不同，在这个工作中，作者在时序特征中采用了在时间方向加权平均的方法。这个注意力加权取决于LSTM在每个时间步的输出结果。
+
+![Larochelle_paper_high][Larochelle_paper_high]
+
+<div align='center'>
+    <b>
+    	动作识别中的注意力机制。
+    </b>
+</div>
+
+**基准**：
+
+无，这个网络是用在视频描述而不是动作识别之中的。
+
+**备注**：
+
+这个2015年的工作是第一次在视频表征中引入注意力机制的标志性工作。
+
+----
+
+### 4. 双流融合
+
+> Convolutional Two-Stream Network Fusion for Video Action Recognition Feichtenhofer et al.
+> Submitted on 22 April 2016
+> [Arxiv Link](https://arxiv.org/abs/1604.06573)
+
+**主要贡献点**：
+
+- 通过更好的长时间损失函数对长时间时序依赖问题进行了建模
+- 新颖的多层次融合框架
+
+**解释**：
+
+在这个工作中，作者使用了双流网络框架（不过用了两种新颖的方法进行的，对比之前的工作而言），并且在没有任何模型参数量增加的情况下，提高了模型性能。作者主要探讨了以下两种主要想法的有效性：
+
+1. 融合时间流和空间流。对于一个区分梳头和刷牙动作类别的任务而言，空间流网络可以捕获其在视频中的空间依赖（是否是头发或者是牙齿），而时间流网络可以捕获视频中的每个空间位置上的物体的周期性动作（motion）。 因此，将一个特定的区域映射到对应区域的时间特征图是非常重要的， 为了达到同样的目的，需要在早期阶段对网络进行融合，以便将相同像素位置的响应进行对应，而不是在最后进行融合（就像在基础的双流网络一般）。
+2. 在时间帧的方向上组合时间流网络，使得其可以对长时间时序依赖进行建模。
+
+**算法**：
+
+这个工作大部分和之前的双流网络一致，除了：
+
+1. 就像下图所示，来自于两个流的`conv_5`层的输出通过`conv+pooling`的手段进行了融合。在某端的一层同样有另外一种融合。最后的融合结果被用来计算时空损失函数。
+
+![fusion_strategies_high][fusion_strategies_high]
+
+<div align='center'>
+    <b>
+    	可供选择的融合时间流和空间流的策略。右边的策略表现更佳。
+    </b>
+</div> 
+
+2. 对于时间流融合来说，时间流网络的输出，在时间轴上进行了层叠，通过`conv+pooling`层融合的结果同样被用于了另外一个时序损失函数的计算。
+
+![2streamfusion][2streamfusion]
+
+ 
+
+| 得分（score） | 备注（comment）  |
+| ------------- | ---------------- |
+| 92.5          | 双流融合网络     |
+| 94.2          | 双流融合网络+iDT |
+
+**备注**：
+
+这个工作的作者用这个工作建立双流网络方法的“霸权”地位，因为其将模型性能提高到了C3D的程度，但是却没有C3D模型中的额外的参数量。
+
+----
+
+### 5. TSN
+
+> Temporal Segment Networks: Towards Good Practices for Deep Action Recognition Wang et al.
+> Submitted on 02 August 2016
+> [Arxiv Link](https://arxiv.org/abs/1608.00859)
+
+**主要贡献点**：
+
+- 针对长时间时序依赖问题的有效的解决方案
+- 使用了batch norm层，dropout层和预训练，并且取得了不错的效果，开启了后续使用这些“套路”的习惯。
+
+**解释**：
+
+在这个工作中，作者在双流架构的基础上进行扩展，达到了领先的水平。这个工作和之前的工作主要有两点不同：
+
+1. 他们提出在视频中稀疏地进行视频片段采样，而不是对整个视频进行随机采样，以更好地对长时间时序信号进行建模。
+2. 对于视频最后的类别进行预测，作者探索了多种策略，最后结果证实最好的策略是：
+   - **分别**融合时间流和空间流（如果还有其他模态的数据，那么这些模态的数据也作为一个流需要包含入内）的预测结果，这里的融合指的是在不同的片段之间进行类别得分的平均操作。
+   - 通过权值加权平均的方法融合最终时间和空间上的得分，并且在所有类别上应用softmax函数，得到最终的预测概率分布。
+
+这个工作的其他重要部分是缓解了过拟合问题（因数据集大小过小导致的），并且证实了现在流行的很多技术手段的有效性，比如Batch Normalization，Dropout和预训练等
+
+
+
+ The other important part of the work was establishing the problem of overfitting (due to small dataset sizes) and demonstrating usage of now-prevalent techniques like batch normalization, dropout and pre-trainign to counter the same. The authors also evaluated two new input modalities as alternate to optical flow - namely warped optical flow and RGB difference. 
+
 
 
 # Reference
@@ -288,6 +405,13 @@
 [c3d_high]: ./imgs/c3d_high.png
 [trial]: ./imgs/trial.gif
 [fstcn_high]: ./imgs/fstcn_high.png
+
+[Larochelle_paper_high]: ./imgs/Larochelle_paper_high.png
+
+[fusion_strategies_high]: ./imgs/fusion_strategies_high.png
+[2streamfusion]: ./imgs/2streamfusion.png
+
+
 
 
 
