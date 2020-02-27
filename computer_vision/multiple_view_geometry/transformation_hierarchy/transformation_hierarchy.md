@@ -462,7 +462,6 @@ $$
 $$
 
 $$
-
 \mathbf{\Omega}^{\prime} = \mathbf{T}_{M} \mathbf{\Omega} \mathbf{T}_M^{\mathrm{T}}
 \tag{5.12}
 $$
@@ -493,11 +492,74 @@ $$
 $$
 于是有：
 
+$$
+\mathbf{\Omega}^{\prime} = \sigma^2 \mathbf{R} \mathbf{I}_{3 \times 3} \mathbf{R}^{\mathrm{T}} = \sigma^2 \mathbf{I}_{3 \times 3}
+\tag{5.14}
+$$
+因为$\sigma$是尺度因子，因此对形状没有影响，我们发现变换前后绝对圆锥线的形状不变。
+
+![trans2][trans2]
+
+<div align='center'>
+    <b>
+        Fig 5.5 左图是仿射变换，右图是相似性变换的结果。
+    </b>
+</div>
 
 
 
+## 欧几里德变换
+
+欧几里德变换在相似性变换的基础上，只是把尺度因子$\sigma = 1$设置为了1， 其他不变，因此在继承了相似性变换的所有不变性特性的基础上，又增加了**绝对长度不变性**。我们有：
+$$
+\begin{aligned}
+\mathbf{T}_{E} &= 
+\left[
+\begin{matrix}
+r_{11} &  r_{12} &  r_{13} & t_X \\
+r_{21} &  r_{22} &  r_{23} & t_Y \\
+r_{31} &  r_{22} &  r_{33} & t_Z \\
+0 & 0 & 0 & 1 
+\end{matrix}
+\right]  \in \mathbb{R}^{4 \times 4} \\
+\left[
+\begin{matrix}
+X^{\prime} \\
+Y^{\prime} \\
+Z^{\prime} \\
+1
+\end{matrix}
+\right] &= \mathbf{T}_E
+\left[
+\begin{matrix}
+X \\
+Y \\
+Z \\
+1
+\end{matrix}
+\right]
+\end{aligned}
+\tag{5.15}
+$$
+因此其自由度就只剩下了3个方向自由度，3个平移自由度。
 
 
+
+-----
+
+# 总结
+
+洋洋洒洒地写了一大堆，现在总结下这四大变换的自由度和不变性：
+
+1. 投影变换，自由度15，不变性：**交叉比，共线性，切线性**。
+
+2. 仿射变换，自由度12，不变性：交叉比，共线性，切线性， **轴方向的相对距离不变，平行不变，理想面不变**。
+3. 相似性变换，自由度7，不变性：交叉比，共线性，切线性， 轴方向的相对距离不变，平行不变，理想面不变， **相对距离不变，角度不变，绝对圆锥线不变**。
+4. 欧几里德变换，自由度6，不变性：交叉比，共线性，切线性， 轴方向的相对距离不变，平行不变，理想面不变，相对距离不变，角度不变，绝对圆锥线不变，**绝对距离不变**。
+
+![summary][summary]
+
+PS: 本文引出绝对圆锥线的概念，是为了以后的立体视觉中的恢复重建任务和相机参数标定等任务进行铺垫。
 
 ------
 
@@ -537,3 +599,6 @@ $$
 
 [trans1]: ./imgs/trans1.png
 [iac]: ./imgs/iac.png
+[trans2]: ./imgs/trans2.png
+[summary]: ./imgs/summary.png
+
