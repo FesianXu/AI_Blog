@@ -46,7 +46,7 @@ github: https://github.com/FesianXu
         Fig 1.2 固定带宽/4G平均下载速率变化曲线
 </div>
 
-的确，我们现在是不缺视频的时代，我们有的是数据，大型公司有着广大的用户基础，每天产生着海量的数据，这些海量的数据，然而是可以产生非常巨大的价值的。以色列历史学家尤瓦尔·赫拉利在其畅销书《未来简史》和《今日简史》中，描述过一种未来的社会，在那个社会中，数据是虚拟的黄金，垄断着数据的公司成为未来的umbrella公司，控制着人们的一言一行，人们最终成为了数据和算法的奴隶。尽管这个描述过于骇人和科幻，然而这些都并不是空穴来风，我们能知道的是，从数据中，我们的确可以做到很多事情，我们可以通过数据进行用户画像描写，知道某个用户的各个属性信息，知道他或她喜爱什么，憎恶什么，去过何处，欲往何方。我们根据用户画像进行精确的广告推送，让基于大数据的算法在无形中控制你的购物习惯也不是不可能的事情。数据的确非常重要，然而可惜的是，目前AI算法在视频——这个未来媒体之王上的表现尚不是非常理想，仍有很多问题亟待解决，然而未来可期，我们可以预想到，在视频上，我们终能成就一番事业。
+的确，我们现在是不缺视频的时代，我们有的是数据，大型公司有着广大的用户基础，每天产生着海量的数据，这些海量的数据，然而是可以产生非常巨大的价值的。以色列历史学家尤瓦尔·赫拉利在其畅销书《未来简史》和《今日简史》中，描述过一种未来的社会，在那个社会中，数据是虚拟的黄金，垄断着数据的公司成为未来的umbrella公司，控制着人们的一言一行，人们最终成为了数据和算法的奴隶。尽管这个描述过于骇人和科幻，然而这些都并不是空穴来风，我们能知道的是，从数据中，我们的确可以做到很多事情，我们可以通过数据进行用户画像描写，知道某个用户的各个属性信息，知道他或她喜爱什么，憎恶什么，去过何处，欲往何方。我们根据用户画像进行精确的广告推送，让基于大数据的算法在无形中控制你的购物习惯也不是不可能的事情。数据的确非常重要，然而可惜的是，目前AI算法在视频——这个未来媒体之王上的表现尚不是非常理想（当前在sports-1M上的R(2+1)D模型[7]的表现不足80%，不到可以实用的精度。），仍有很多问题亟待解决，然而未来可期，我们可以预想到，在视频上，我们终能成就一番事业。
 
 
 
@@ -107,9 +107,13 @@ github: https://github.com/FesianXu
 
 关于骨骼点序列的采集可以参考以前的博文[2]。我们在本文讨论的比较多的还是基于RGB视频模态的算法。
 
+-----
+
 ## 视频动作分类数据集
 
 现在公开的视频动作分类数据集有很多，比较流行的in-wild数据集主要是在YouTube上采集到的，包括以下的几个。
+
+- HMDB-51，该数据集在YouTube和Google视频上采集，共有6849个视频片段，共有51个动作类别。
 
 - UCF101，有着101个动作类别，13320个视频片段，大尺度的摄像头姿态变化，光照变化，视角变化和背景变化。
 
@@ -125,18 +129,178 @@ github: https://github.com/FesianXu
 
   ![youtube8M][youtube8M]
 
+- Kinectics 700，这个系列的数据集同样是个巨无霸，有着接近650,000个样本，覆盖着700个动作类别。每个动作类别至少有着600个视频片段样本。
+
 以上的数据集模态都是RGB视频，还有些数据集是多模态的：
 
 - NTU RGB+D 60： 包含有60个动作，多个视角，共有约50k个样本片段，视频模态有RGB视频，深度图序列，骨骼点信息，红外图序列等。
 - NTU RGB+D 120：是NTU RGB+D 60的扩展，共有120个动作，包含有多个人-人交互，人-物交互动作，共有约110k个样本，同样是多模态的数据集。
 
+----
+
 ## 在深度学习之前
 
-在深度学习之前，AI算法工程师是特征工程师，我们手动设计特征，而这是一个非常困难的事情。手动设计的特征主要套路有：
+在深度学习之前，AI算法工程师是特征工程师，我们手动设计特征，而这是一个非常困难的事情。手动设计特征并且应用在视频分类的主要套路有：
+
+**特征设计**：挑选合适的特征描述视频
 
 1. 局部特征（Local features）：比如HOG（梯度直方图 ）+ HOF（光流直方图）
 2. 基于轨迹的（Trajectory-based）：Motion Boundary Histograms（MBH）[4]，improved Dense Trajectories （iDT） ——有着良好的表现，不过计算复杂度过高。
-3. 
+
+**集成挑选好的局部特征：** 光是局部特征或者基于轨迹的特征不足以描述视频的全局信息，通常需要用某种方法集成这些特征。
+
+1. 视觉词袋（Bag of Visual Words，BoVW），BoVW提供了一种通用的通过局部特征来构造全局特征的框架，其受到了文本处理中的词袋（Bag of Word，BoW）的启发，主要在于构造词袋（也就是字典，码表）等。
+
+   ![BoVW][BoVW]
+
+2. Fisher Vector，FV同样是通过集成局部特征构造全局特征表征。具体详细内容见[5]
+
+   ![FV][FV]
+
+要表征视频的时序信息，我们主要需要表征的是动作的运动（motion）信息，这个信息通过帧间在时间轴上的变化体现出来，通常我们可以用光流（optical flow）进行描述，如TVL1和DeepFlow。
+
+![optical_flow][optical_flow]
+
+在深度学习来临之前，这些传统的CV算法在视频动作理解中占了主要地位，即便是如今在深度学习大行其道的时代，这些传统的算子也没有完全退出舞台，很多算法比如Two Stream Network等还是会显式地去使用其中的一些算子，比如光流，比如C3D也会使用iDT作为辅助的特征。了解，学习研究这些算子对于视频分析来说，还是必要的。
+
+---
+
+## 深度学习时代
+
+在深度学习时代，视频动作理解的主要工作量在于如何设计合适的深度网络，而不是手动设计特征。我们在设计这样的深度网络的过程中，需要考虑两个方面内容：
+
+1. 模型方面：什么模型可以最好的从现有的数据中捕获时序和空间信息。
+2. 计算量方面：如何在不牺牲过多的精度的情况下，减少模型的计算量。
+
+组织时序信息是构建视频理解模型的一个关键点，Fig 3.2展示了若干可能的对多帧信息的组织方法。[6]
+
+1. Single Frame，只是考虑了当前帧的特征，只在最后阶段融合所有的帧的信息。
+2. Late Fusion，晚融合使用了两个共享参数的特征提取网络（通常是CNN）进行相隔15帧的两个视频帧的特征提取，同样也是在最后阶段才结合这两帧的预测结果。
+3. Early Fusion，早融合在第一层就对连续的10帧进行特征融合。
+4. Slow Fusion，慢融合的时序感知野更大，同时在多个阶段都包含了帧间的信息融合，伴有层次（hierarchy）般的信息。这是对早融合和晚融合的一种平衡。
+
+在最终的预测阶段，我们从整个视频中采样若各个片段，我们对这采样的片段进行动作类别预测，其平均或者投票将作为最终的视频预测结果。
+
+![fusions][fusions]
+
+<div align='center'>
+    <b>
+        Fig 3.2 融合多帧信息的不同方式。
+</div>
+
+最终若干个帧间信息融合的方法在sport-1M测试集上的结果如Fig 3.3所示：
+
+![fusion_exp][fusion_exp]
+
+<div align='center'>
+    <b>
+        Fig 3.3 不同帧间融合方法在sport-1M数据集上的表现。
+</div>
+另外说句，[6]的作者从实验结果中发现即便是时序信息建模很弱的Single-Frame方式其准确率也很高，即便是在很需要motion信息的sports体育动作类别上，这个说明不仅仅是motion信息，单帧的appearance信息也是非常重要的。
+
+回到主题，这些融合方法，都是手动设计的融合帧间特征的方式，而深度学习网络基本上只在提取单帧特征上发挥了作用。这样可能不够合理，我们期望设计一个深度网络可以进行端到端的学习，无论是时序信息还是空间信息。于是我们想到，既然视频序列和文本序列，语音序列一样，都是序列，为什么我们不尝试用RNN去处理呢？
+
+的确是可以的，我们可以结合CNN和RNN，直接把视频序列作为端到端的方式进行模型学习。设计这类模型，我们有几种选择可以挑选：
+
+1. 考虑输入的数据模态：a> RGB；   b> 光流； c> 光流+RGB
+2. 特征： a> 人工设计； b> 通过CNN进行特征提取
+3. 时序特征集成：a> 时序池化； b> 用RNN系列网络进行组织
+
+时序池化如Fig 3.4所示，类似于我们之前讨论的时序融合，不过在细节上不太一样，这里不展开讨论了，具体见文章[8]。
+
+![temporal_pooling][temporal_pooling]
+
+<div align='center'>
+    <b>
+        Fig 3.4 不同方式的时序池化。
+</div>
+
+然而，[8]的作者得出的结论是时序池化比LSTM进行时序信息组织的效果好，这个结论然而并不是准确的，因为[8]的作者并不是端到端去训练整个网络。
+
+如果单纯考虑CNN+RNN的端到端训练的方式，那么我们就有了LRCN网络[9]，如Fig 3.5所示，我们可以发现其和[8]的不同在于其是完全的端到端网络，无论是时序和空间信息都是可以端到端训练的。同样的，[9]的作者的输入同样进行了若干种结合，有单纯输入RGB视频，单纯输入光流，结合输入光流和RGB的，结论发现结合输入光流和RGB的效果最为优越。这点其实值得细品，我们知道光流信息是传统CV中对运动motion信息的手工设计的特征，需要额外补充光流信息，说明光靠这种朴素的LSTM的结构去学习视频的时序信息，motion信息是不足够的，这点也在侧面反映了视频的时序组织的困难性。
+
+![LRCNactrec_high][LRCNactrec_high]
+
+<div align='center'>
+    <b>
+        Fig 3.5 LRCN网络应用在动作识别问题。
+</div>
+
+LRCN当然不可避免存在缺点，采用了光流信息作为输入意味着需要大量的预先计算用于计算视频的光流；而视频序列的长时间依赖，motion信息可能很难被LSTM捕获；同时，因为需要把整个视频分成若干个片段，对片段进行预测，在最后平均输出得到最终的视频级别的预测结果，因此如果标注的动作只占视频的很小一段，那么模型很难捕获到需要的信息。
+
+结合光流信息并不是LRCN系列网络的专利，Two Stream Network双流网络[10]也是结合视频的光流信息的好手。在双流网络中，我们同样需要对整个视频序列进行采样，得到若干个片段，然后我们从每个片段中计算得到光流信息作为motion信息描述这个动作的运动，然后从这个片段中采样得到一帧图像作为代表，表征整个片段的appearance信息。最终融合motion和appearance信息，分类得到预测结果。这种显式地利用光流来组织时序信息，把motion流和appearance流显式地分割开进行模型组织的，也是一大思路。
+
+![2stream_high][2stream_high]
+
+<div align='center'>
+    <b>
+        Fig 3.6 双流网络的网络示意图，需要输入视频的光流信息作为motion信息，和其中某个采样得到的单帧信息作为appearance信息。
+</div>
+
+当然，LRCN具有的问题，双流网络也有，包括计算光流的计算复杂度麻烦，采样片段中可能存在的错误标签问题（也就是采样的片段可能并不是和视频级别有着相同的标签，可能和视频级别的标注相符合的动作只占整个视频的很小一段。）对长时间依赖的动作信息组织也是一个大问题。
+
+到目前为止，我们都是尝试对视频的单帧应用2D卷积操作进行特征提取，然后在时间轴上进行堆叠得到最终的含有时间序列信息的特征。
+
+![2Dconv][2Dconv]
+
+我们自然就会像，如果有一种卷积，能在提取空间信息的同时又能够提取时序信息，那岂不是不需要手工去堆叠时序特征了？一步到位就行了。的确的，我们把这种卷积称之为3D卷积，3D卷积正如其名，其每个卷积核有三个维度，两个在空间域上平移，而另一个在时间轴上滑动卷积。
+
+![3Dconv][3Dconv]
+
+这样的工作可以追溯到2012年的文章[11]，那该文章中，作者提出的网络不是端到端可训练的，同样设计了手工的特征，称之为`input-hardwired`，作者把原视频的灰度图，沿着x方向的梯度图，沿着y方向的梯度图，沿着x方向的光流图，沿着y方向的光流图堆叠层H1层，然后进行3D卷积得到最终的分类结果。如果我们仔细观察Fig 3.7中的3D卷积核的尺寸，我们发现其不是我们现在常见的$3\times3\times3$的尺寸。这个网络开创了3D卷积在视频上应用的先河，然而其也有不少缺点，第一就是其不是端到端可训练的，还是涉及到了手工设计的特征，其二就是其设计的3D卷积核尺寸并不是最为合适的，启发自VGG的网络设计原则，我们希望把单层的卷积核尽可能的小，尽量把网络设计得深一些。
+
+![raw_3dconv][raw_3dconv]
+
+<div align='center'>
+    <b>
+        Fig 3.7 3D卷积网络的最初尝试。
+</div>
+
+这些缺点带来了C3D[12]网络，与[11]最大的不同就是，其使用的卷积核都是相同的尺寸大小，为$3\times3\times3$，并且其不涉及到任何手工设计特征输入，因此是完全的端到端可训练的，作者尝试把网络设计得更深一些，最终达到了当时的SOTA(state-of-the-art)结果。作者发现结合了iDT特征，其结果能有5%的大幅度提高（在ufc101-split1数据上从85.2%到90.4%）。
+
+![c3d][c3d]
+<div align='center'>
+    <b>
+        Fig 3.8 C3D网络框图示意。
+</div>
+
+
+![c3d_gif][c3d_gif]
+<div align='center'>
+    <b>
+        Fig 3.9 3D卷积动图示意。
+</div>
+
+尽管在当时C3D达到了SOTA结果，其还是有很多可以改进的地方的，比如其对长时间的依赖仍然不能很好地建模，但是最大的问题是，C3D的参数量很大，导致整个模型的容量很大，需要大量的标签数据用于训练，并且，我们发现3D卷积很难在现有的大规模图片数据集比如ImageNet上进行预训练，这样导致我们经常需要从头训练C3D，如果业务数据集很小，那么经常C3D会产生严重的过拟合。
+
+
+
+为了解决这种问题，我们可以把3D卷积分解为空间上的2D卷积和时间轴上的1D卷积的复合，这种网络我们称为R(2+1)D[7]。
+
+![R2+1D][R2+1D]
+
+<div align='center'>
+    <b>
+        Fig 3.10 众多结合2D卷积和3D卷积的方法，其中实验发现R(2+1)D效果最佳。
+</div>
+
+![2+1D_block][2+1D_block]
+
+<div align='center'>
+    <b>
+        Fig 3.11 （2+1）D conv单元示意图，把3D卷积进行分解成了空间域卷积和时间域卷积。
+</div>
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -152,6 +316,36 @@ github: https://github.com/FesianXu
 
 [4]. Wang H, Kläser A, Schmid C, et al. Dense trajectories and motion boundary descriptors for action recognition[J]. International journal of computer vision, 2013, 103(1): 60-79.
 
+[5]. https://hal.inria.fr/hal-00830491v2/document
+
+[6]. Karpathy A, Toderici G, Shetty S, et al. Large-scale video classification with convolutional neural networks[C]//Proceedings of the IEEE conference on Computer Vision and Pattern Recognition. 2014: 1725-1732.
+
+[7]. Tran D, Wang H, Torresani L, et al. A closer look at spatiotemporal convolutions for action recognition[C]//Proceedings of the IEEE conference on Computer Vision and Pattern Recognition. 2018: 6450-6459.
+
+[8]. Yue-Hei Ng J, Hausknecht M, Vijayanarasimhan S, et al. Beyond short snippets: Deep networks for video classification[C]//Proceedings of the IEEE conference on computer vision and pattern recognition. 2015: 4694-4702.
+
+[9]. Donahue J, Anne Hendricks L, Guadarrama S, et al. Long-term recurrent convolutional networks for visual recognition and description[C]//Proceedings of the IEEE conference on computer vision and pattern recognition. 2015: 2625-2634.
+
+[10]. Simonyan K, Zisserman A. Two-stream convolutional networks for action recognition in videos[C]//Advances in neural information processing systems. 2014: 568-576.
+
+[11]. Ji S, Xu W, Yang M, et al. 3D convolutional neural networks for human action recognition[J]. IEEE transactions on pattern analysis and machine intelligence, 2012, 35(1): 221-231.
+
+[12]. Tran D, Bourdev L, Fergus R, et al. Learning spatiotemporal features with 3d convolutional networks[C]//Proceedings of the IEEE international conference on computer vision. 2015: 4489-4497.
+
+[13]. 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 [apps_pros]: ./imgs/apps_pros.jpg
@@ -162,3 +356,43 @@ github: https://github.com/FesianXu
 [sports1m]: ./imgs/sports1m.jpg
 
 [youtube8M]: ./imgs/youtube8M.jpg
+[BoVW]: ./imgs/BoVW.png
+
+[FV]: ./imgs/FV.png
+[optical_flow]: ./imgs/optical_flow.png
+[fusions]: ./imgs/fusions.png
+[fusion_exp]: ./imgs/fusion_exp.png
+
+[rgb+of]: ./imgs/rgb+of.png
+[temporal_pooling]: ./imgs/temporal_pooling.png
+[LRCNactrec_high]: ./imgs/LRCNactrec_high.png
+[2stream_high]: ./imgs/2stream_high.png
+[2Dconv]: ./imgs/2Dconv.png
+[3Dconv]: ./imgs/3Dconv.png
+[raw_3dconv]: ./imgs/raw_3dconv.png
+[c3d]: ./imgs/c3d.png
+[c3d_gif]: ./imgs/c3d_gif.gif
+
+[R2+1D]: ./imgs/R2+1D.png
+[2+1D_block]: ./imgs/2+1D_block.png
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
