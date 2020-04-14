@@ -311,9 +311,10 @@ Pseudo-3D ResNet(P3D ResNet)网络[15]则在学习ResNet的残差设计的路上
 
 <div align='center'>
     <b>
-        Fig 3.12 P3D ResNet比C3D的模型更小，深度更深，性能却更加。
+        Fig 3.12 P3D ResNet比C3D的模型更小，深度更深，表现性能却更高。
     </b>
 </div>
+
 
 ![p3d_performance][p3d_performance]
 
@@ -383,7 +384,7 @@ Pseudo-3D ResNet(P3D ResNet)网络[15]则在学习ResNet的残差设计的路上
 
    *总结* ： 3D卷积网络在高维医学图像和视频分析中都有广阔的应用，其存在很多尝试分解3D卷积成2D+1D卷积的操作，而且都有不错的效果。模型参数量在三种基本模型中最大。
 
-3. **Two-Stream**： 双流网络显式地分割了motion流和appearance流两种信息，（大部分）利用人工设计的光流特征进行视频的motion信息建模，用RGB片段的单帧信息作为appearance信息，利用预训练的CNN进行特征提取后，融合不同流的预测结果得到最终视频片段的预测。
+3. **Two-Stream**： 双流网络[]显式地分割了motion流和appearance流两种信息，（大部分）利用人工设计的光流特征进行视频的motion信息建模，用RGB片段的单帧信息作为appearance信息，利用预训练的CNN进行特征提取后，融合不同流的预测结果得到最终视频片段的预测。
 
    - 优点：可以直接自然地利用预训练的大多数CNN网络，如VGG，ResNet等。效果良好，现在很多工作都是基于双流网络进行改造而成。直接用光流信息去建模motion信息，使得在较小样本的数据集中也能有不错效果。
    - 缺点：大部分工作的光流信息都是需要预训练的，这样无法提供一个端到端的预训练场景，同时，光流计算耗费较多的计算资源。
@@ -408,11 +409,80 @@ Pseudo-3D ResNet(P3D ResNet)网络[15]则在学习ResNet的残差设计的路上
 
 那么我们接下来的内容，基本上都是在回答这些问题。Follow my lead and go on~
 
-## 双流网络的信息融合
+## 双流网络的信息融合——如何融合，何处融合
 
 ![2stream_high][2stream_high]
 
+我们之前谈到过，我们一般的双流网络的输出无论是motion流还是appearance流，其最后一层的输出张量尺寸都是一致的，我们可以用式子(4.1)表示：
+$$
+\mathbf{x}_{t}^a \in \mathbb{R}^{H \times W \times D} \\
+\mathbf{x}_{t}^b \in \mathbb{R}^{H^{\prime} \times W^{\prime} \times D^{\prime}}
+\tag{4.1}
+$$
+其中$\mathbf{x}_t^a$表示motion流特征输出，$\mathbf{x}_{t}^b$表示appearance流特征输出， $H$表示height，$W$是width， $D$表示最终输出通道数depth。我们对两个流的信息融合可以表示为(4.2)
+$$
+f: \mathbf{x}_t^a, \mathbf{x}_t^b \rightarrow \mathbf{y}_t \\
+\mathbf{y}_t \in \mathbb{R}^{H^{\prime\prime} \times W^{\prime\prime} \times D^{\prime\prime}}
+\tag{4.2}
+$$
+其中的映射$f$就是我们需要指定的信息融合函数，通常为了方便，我们假定$H = H^{\prime}, W = W^{\prime}, D=D^{\prime}$，并且把下标$t$省略。我们期待的信息融合，如Fig 4.2所示，应该可以找到motion流和appearance流之间的对应关系，而不应该是割裂开的。在传统的双流网络[10]中，因为双流信息融合只在最后进行各自流的预测合并（比如说平均操作）的时候才体现出来，因此motion流信息其实并没有在各个层次（hierarchy）上和appearance流信息很好地对应。我们希望的双流信息融合应该如Fig 4.2所示。
 
+![corresponding_fusion][corresponding_fusion]
+
+<div align='center'>
+    <b>
+        Fig 4.2 理想的motion流和appearance流特征融合应该能找到两个流之间的对应特征部分。
+    </b>
+</div>
+
+在文章[16]中，作者对若干种双流信息融合方式进行了介绍和实验对比，同时对何处进行信息融合进行了实验。通过结合最佳的信息融合方式和信息融合层的位置，作者提出了所谓的双流融合网络（Two Stream Fused Network）。
+
+一般，有以下几种方式融合信息：
+
+1. sum fusion，加和融合，表示为$y^{sum} = f^{sum}(\mathbf{x}^a, \mathbf{x}^b)$。如果$i,j$分别表示第$d$个通道的$i,j$空间位置，那么我们有 $y_{i,j,d}^{sum} = x^{a}_{i,j,d}+x^{b}_{i,j,d}$。因为通道数的排序是任意的，因此并不意味着$\mathbf{x}_{i,j,1}^a$和$\mathbf{x}_{i,j,1}^b$有着对应的语义含义，当然这种任意的对应关系我们可以通过后续设计网络进行学习，以求达到最好的优化效果。
+
+2. max fusion，最大融合，表示为$y^{max} = f^{max}(\mathbf{x}^a, \mathbf{x}^b)$。同样有着：$y_{i,j,d}^{max} = \max(x^a_{i,j,d}, x^b_{i,j,d})$。和sum fusion类似的，其对应关系也是任意的。
+
+3. Concatenation fusion，拼接融合，表示为$y^{concat} = f^{concat}(\mathbf{x}^{a},\mathbf{x}^{b})$，其叠在通道叠加了两个流的特征图。同样我们有：
+   $$
+   \begin{aligned}
+   y^{cat}_{i,j,2d} &= x^{a}_{i,j,d} \\
+   y^{cat}_{i,j,2d-1} &= x^{b}_{i,j,d}
+   \end{aligned}
+   \tag{4.3}
+   $$
+   
+   拼接融合没有指定显式的对应关系，因此必须通过后续的网络设计进行学习这种对应关系。
+
+4. Conv fusion，卷积融合，表示为$y^{conv} = f^{conv}(\mathbf{x}^a, \mathbf{x}^b)$。首先，我们需要对两个特征图进行在通道上的叠加，然后用一系列的卷积核$\mathbf{f} \in \mathbb{R}^{1 \times 1 \times 2D \times D}$和偏置$\mathbf{b} \in \mathbb{R}^{D}$进行卷积操作，有：
+   $$
+   \mathbf{y}^{conv} = \mathbf{y}^{concat} * \mathbf{f}+\mathbf{b}
+   \tag{4.4}
+   $$
+   我们发现这里的卷积操作是1x1卷积，同时进行了通道数的缩小，保持了输入输出尺寸的一致。
+
+5. Bilinear fusion，双线性融合，表示为$y^{bil} = f^{bil}(\mathbf{x}^a, \mathbf{x}^b)$，其在每个像素位置，计算了两个特征图的矩阵外积，定义为：
+   $$
+   \mathbf{y}^{bil} = \sum^{H}_{i=1}\sum_{j=1}^{W}(\mathbf{x}^{a}_{i,j})^{\mathrm{T}}\mathbf{x}^{b}_{i,j}
+   \tag{4.5}
+   $$
+   这个产生的融合特征输出为$\mathbf{y}^{bil} \in \mathbb{R}^{D^2}$，具有过高的维度，因此在实际中比较少应用。
+
+作者对这几种融合方式进行了实验，得出了其模型准确度和模型参数量的实验结果。如Fig 4.3所示。
+
+![fusion_params_number][fusion_params_number]
+
+<div align='center'>
+    <b>
+        Fig 4.3 各种不同的双流信息融合方式的实验结果和模型参数量。
+    </b>
+</div>
+
+我们发现，Conv fusion能在较少的参数量下，达到最好的实验性能。
+
+![where_to_fuse][where_to_fuse]
+
+同时，如上图所示，作者探索了在哪个层进行
 
 
 
@@ -565,10 +635,8 @@ T3D
 
 [2stream_of]: ./imgs/2stream_of.jpg
 [basic_framework]: ./imgs/basic_framework.jpg
+[corresponding_fusion]: ./imgs/corresponding_fusion.jpg
 
-
-
-
-
-
+[fusion_params_number]: ./imgs/fusion_params_number.jpg
+[where_to_fuse]: ./imgs/where_to_fuse.jpg
 
