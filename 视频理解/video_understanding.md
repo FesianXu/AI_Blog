@@ -566,19 +566,32 @@ $$
 1. 采集大规模标注视频数据集Kinetics ——这点很直接粗暴，但是很有用。
 2. 采用将已经预训练好了的2D卷积网络的2D卷积核“膨胀”（inflate）到对应的3D卷积核的操作，利用了预训练的CNN模型。这个模型作者称之为I3D（Inflated 3D ConvNets）。
 
-如果把之前已经介绍过了的几种模型都列成一个简图，那么我们有Fig 4.9。其中(a)-(d)我们在之前的内容中介绍过了，而(e) Two-Stream 3D-ConvNet也就是本节所说的I3D网络。我们可以发现，这种网络的基本框架还是利用了双流网络的结构，只不过把
+如果把之前已经介绍过了的几种模型都列成一个简图，那么我们有Fig 4.9。其中(a)-(d)我们在之前的内容中介绍过了，而(e) Two-Stream 3D-ConvNet也就是本节所说的I3D网络。我们可以发现，这种网络的基本框架还是利用了双流网络的结构，不过改变了以下几个要点：
+
+1. 完全采用3D ConvNet作为特征提取器，提取时空信息。
+2. RGB输入不再是单帧了，而是把整个视频输入3D卷积网络进行特征提取，同样的，光流motion流的输入也不再是片段的长度了，而是整个视频的长度。
 
 ![5types_networks][5types_networks]
 
 <div align='center'>
     <b>
-        Fig 4.9 五种动作识别的网络简图，前四种我们已经介绍过了。
+        Fig 4.9 五种动作识别的网络简图，前四种我们已经介绍过了。其中的K代表的是整个视频的长度，N表示的是某个帧周围的邻居的长度，比如某个时间帧t，如果N=10，那么就会在[t-5,t+5]的范围内对视频采样。
     </b>
 </div>
 
+我们先不关心作者是怎么采集大规模数据集的，我们关心作者是怎么对2D卷积核进行“膨胀”的。我们考虑到一个2D卷积核，其尺寸为$(N \times N)$，那么我们为它添加一个时间维度，得到尺寸为$(N \times N \times 1)$的卷积核，将这个卷积核在第三个维度复制N次，我们就有了$(N \times N \times N)$的3D卷积核。这个结论其实可以推导：
 
+假设我们想要找ImageNet上训练3D卷积网络，我们可以考虑一种最简单的方式，[13]的作者称之为boring-video fixed point。我们把一张图片，复制M次，层叠形成一个视频，只不过这个视频并没有时序上的信息，所有帧都是重复的，然后用这个视频去训练3D卷积网络。由于线性性，我们可以将整个过程简化为将2D卷积核进行时间维度的复制。这种方式使得I3D网络可以在ImageNet上进行预训练，如Fig 4.10所示，这种策略的确产生了不错的效果。
 
+![pretrain_i3d][pretrain_i3d]
 
+<div align='center'>
+    <b>
+        Fig 4.10 在ImageNet上预训练对于I3D网络的性能提升。
+    </b>
+</div>
+
+目前而言，I3D网络在各个benchmark数据集上的表现都不错，是一个不错的baseline基线网络。
 
 ## 内嵌光流计算的深度网络
 
@@ -603,6 +616,47 @@ T3D
 
 
 # 其他模态的视频序列动作分析
+
+之前介绍的都是RGB视频或者结合了根据RGB视频计算得到的光流信息作为输入模态，进行视频动作理解的一些方法。笔者本身的研究方向是多视角动作识别，数据输入模态多是骨骼点skeleton数据，如Fig 5.1所示。具体关于骨骼点数据的特点介绍，见笔者之前的文章[2]。在本站，我们尝试讨论骨骼点序列的动作识别和多视角动作识别。
+
+![skeleton][skeleton]
+
+<div align='center'>
+    <b>
+        Fig 5.1 利用Kinect v2.0[21]得到的骨骼点排序
+    </b>
+</div>
+
+总得来说，骨骼点数据可以看成是极端的将motion信息给提取了出来，而丢失了所有的appearance信息。如Fig 5.2所示，我们能很清楚地判断人物的动作，但是涉及到人物的衣着打扮，交互的物体是什么等信息，却是完全没办法判断了。因此，用skeleton骨骼点数据去组织motion信息是一种非常好的手段，但是涉及到与appearance有关的数据，就必须引入RGB视频信息，这类型的多模态问题，已有关于此的不少工作[23]。
+
+![skeleton_gif][skeleton_gif]
+
+<div align='center'>
+    <b>
+        Fig 5.2 利用Openpose[22]对RGB视频估计出来的骨骼点数据
+    </b>
+</div>
+
+骨骼点数据一般有两种类型，2D骨骼点数据或者3D骨骼点数据，2D骨骼点数据多是从RGB视频中进行姿态估计得到，而3D骨骼点数据一般需要深度信息，在某些文献中[24]，存在将根据RGB视频姿态估计得到的2D骨骼点姿态，通过深度网络推断出3D骨骼点姿态的工作，如Fig 5.3所示。
+
+![2dpose_to_3dpose][2dpose_to_3dpose]
+
+<div align='center'>
+    <b>
+        Fig 5.3 利用RGB模态信息进行3D关节点的姿态估计。
+    </b>
+</div>
+
+对于骨骼点数据而言，一般可以表示为张量:
+$$
+\mathbf{S} \in \mathbb{R}^{\mathrm{nframes} \times \mathrm{njoints} \times \mathrm{ndimension}}
+\tag{5.1}
+$$
+其中nframes表示帧数，njoints表示关节点的数量，比如25个关节点一个人一帧，ndimension是维度，比如3D骨骼点是3，而2D骨骼点是2。而这里的数据，一般都是关节点的空间坐标数据，比如Fig 5.4所示：
+
+
+
+
 
 
 
@@ -674,7 +728,13 @@ T3D
 
 [20]. Diba A, Fayyaz M, Sharma V, et al. Temporal 3d convnets: New architecture and transfer learning for video classification[J]. arXiv preprint arXiv:1711.08200, 2017. (T3D)
 
+[21]. https://medium.com/@lisajamhoury/understanding-kinect-v2-joints-and-coordinate-system-4f4b90b9df16
 
+[22]. https://github.com/CMU-Perceptual-Computing-Lab/openpose
+
+[23]. Baradel F, Wolf C, Mille J. Human action recognition: Pose-based attention draws focus to hands[C]//Proceedings of the IEEE International Conference on Computer Vision Workshops. 2017: 604-613.
+
+[24]. Pavllo D, Feichtenhofer C, Grangier D, et al. 3D human pose estimation in video with temporal convolutions and semi-supervised training[J]. arXiv preprint arXiv:1811.11742, 2018.
 
 
 
@@ -736,14 +796,10 @@ T3D
 [2stream_fused_network_framework]: ./imgs/2stream_fused_network_framework.png
 [two_stream_fusiong_expresult]: ./imgs/two_stream_fusiong_expresult.png
 [5types_networks]: ./imgs/5types_networks.png
-
-
-
-
-
-
-
-
+[pretrain_i3d]: ./imgs/pretrain_i3d.png
+[skeleton]: ./imgs/skeleton.png
+[skeleton_gif]: ./imgs/skeleton_gif.gif
+[2dpose_to_3dpose]: ./imgs/2dpose_to_3dpose.gif
 
 
 
