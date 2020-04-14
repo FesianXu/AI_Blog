@@ -652,9 +652,55 @@ $$
 \mathbf{S} \in \mathbb{R}^{\mathrm{nframes} \times \mathrm{njoints} \times \mathrm{ndimension}}
 \tag{5.1}
 $$
-其中nframes表示帧数，njoints表示关节点的数量，比如25个关节点一个人一帧，ndimension是维度，比如3D骨骼点是3，而2D骨骼点是2。而这里的数据，一般都是关节点的空间坐标数据，比如Fig 5.4所示：
+其中nframes表示帧数，njoints表示关节点的数量，比如25个关节点一个人一帧，ndimension是维度，比如3D骨骼点是3，而2D骨骼点是2。而这里的数据，一般都是骨骼点的空间坐标数据，比如Fig 5.4所示：
+
+![skeleton_xyz][skeleton_xyz]
+
+<div align='center'>
+    <b>
+        Fig 5.4 3D骨骼点数据，一般用物理尺度作为单位，比如米。
+    </b>
+</div>
 
 
+
+骨骼点数据的建模，特征提取和RGB，光流等这类数据不同，骨骼点数据是属于graph图数据，属于典型的非欧几里德结构数据[25]，而RGB，光流图属于欧几里德结构数据。非欧几里德数据意味着在骨骼点上不能直接应用传统的CNN，因为很直观的，每个节点周围的节点数都不一致，结构化的CNN根本无从下手。
+
+根据笔者的研究经验，对骨骼点数据进行深度网络建模，可以有以下三种主要思路：
+
+1. 利用LSTM时序网络对骨骼点进行建模，因为单帧的骨骼点数据可以拉平（flatten）成一个向量，通过最简单的全连接层可以作为单帧提取器，然后用LSTM进行时序建模。
+2. 对骨骼点序列进行处理，将其拼成一个二维图像类似的数据结构后直接应用传统的CNN模型进行建模。在这类方法中，CNN模型通常需要同时对时间-空间信息进行建模。
+3. 把骨骼点序列看成时空图（spatia-temporal graph）数据，利用图神经网络，比如GCN图卷积网络进行建模[25,26,27]。
+
+接下来笔者在各个小节将对这几点进行展开，休息一下，我们要开始了哦~
+
+
+
+## LSTM时序组织模型
+
+在本框架中，我们需要对骨骼点序列进行两种最为主要的操作：
+
+1. 如何对单帧的骨骼点信息进行组织
+
+
+
+
+
+## 二维图像化CNN建模
+
+
+
+
+
+## 图神经网络建模
+
+
+
+
+
+## 
+
+# 多视角动作理解
 
 
 
@@ -736,6 +782,14 @@ $$
 
 [24]. Pavllo D, Feichtenhofer C, Grangier D, et al. 3D human pose estimation in video with temporal convolutions and semi-supervised training[J]. arXiv preprint arXiv:1811.11742, 2018.
 
+[25]. https://blog.csdn.net/LoseInVain/article/details/88373506
+
+[26]. https://blog.csdn.net/LoseInVain/article/details/90171863
+
+[27]. https://blog.csdn.net/LoseInVain/article/details/90348807
+
+[28]. 
+
 
 
 
@@ -800,6 +854,11 @@ $$
 [skeleton]: ./imgs/skeleton.png
 [skeleton_gif]: ./imgs/skeleton_gif.gif
 [2dpose_to_3dpose]: ./imgs/2dpose_to_3dpose.gif
+[skeleton_xyz]: ./imgs/skeleton_xyz.png
+
+
+
+
 
 
 
