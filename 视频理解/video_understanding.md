@@ -142,7 +142,9 @@ github: https://github.com/FesianXu
 
 ## 在深度学习之前
 
-在深度学习之前，AI算法工程师是特征工程师，我们手动设计特征，而这是一个非常困难的事情。手动设计特征并且应用在视频分类的主要套路有：
+视频长度不定，一般我们不直接对整段视频进行分析或者处理，我们一般对视频进行采样，比如把整段视频分成若干个片段（clip），这些片段可能是定长的，比如每个片段都是10帧，也可能不是，我们通常会对每个片段进行处理，然后想办法把不同片段的处理结果融合起来，形成最终对整个视频的处理结果。不管怎么样，我们在接下来说的片段时，我们就应该知道这个片段是对某个视频的采样。
+
+在深度学习之前，CV算法工程师是特征工程师，我们手动设计特征，而这是一个非常困难的事情。手动设计特征并且应用在视频分类的主要套路有：
 
 **特征设计**：挑选合适的特征描述视频
 
@@ -411,6 +413,8 @@ Pseudo-3D ResNet(P3D ResNet)网络[15]则在学习ResNet的残差设计的路上
 
 ## 双流网络的信息融合——如何融合，何处融合
 
+### 时空域信息融合
+
 ![2stream_high][2stream_high]
 
 我们之前谈到过，我们一般的双流网络的输出无论是motion流还是appearance流，其最后一层的输出张量尺寸都是一致的，我们可以用式子(4.1)表示：
@@ -466,7 +470,7 @@ $$
    \mathbf{y}^{bil} = \sum^{H}_{i=1}\sum_{j=1}^{W}(\mathbf{x}^{a}_{i,j})^{\mathrm{T}}\mathbf{x}^{b}_{i,j}
    \tag{4.5}
    $$
-   这个产生的融合特征输出为$\mathbf{y}^{bil} \in \mathbb{R}^{D^2}$，具有过高的维度，因此在实际中比较少应用。
+   这个产生的融合特征输出为$\mathbf{y}^{bil} \in \mathbb{R}^{D^2}$，具有过高的维度，容易导致过拟合，因此在实际中比较少应用。
 
 作者对这几种融合方式进行了实验，得出了其模型准确度和模型参数量的实验结果。如Fig 4.3所示。
 
@@ -478,15 +482,101 @@ $$
     </b>
 </div>
 
-我们发现，Conv fusion能在较少的参数量下，达到最好的实验性能。
+我们发现，Conv fusion能在较少的模型参数量下，达到最好的实验性能。
 
 ![where_to_fuse][where_to_fuse]
 
-同时，如上图所示，作者探索了在哪个层进行
+同时，如上图所示，作者探索了在双流网络的哪个层进行融合效果会最好，最后得出实验结果如Fig 4.4所示。我们发现ReLU5+FC8的这个配置能达到最好的性能。
+
+![fusion_loc][fusion_loc]
+
+<div align='center'>
+    <b>
+        Fig 4.4 在双流网络的各个层进行融合取得的效果和模型大小实验结果。
+    </b>
+</div>
 
 
+### 时序信息融合
+
+我们之前谈到的是时空信息融合，指的是将motion流和appearance流融合起来的方式探索。而这个一般是在单个的片段中进行的操作，考虑到如何融合视频中不同片段之间的信息，形成最终的对整个视频的分类结果，我们就需要考虑时序特征建模了。考虑到如何将不同时间$t$的特征图$\mathbf{x}_t$融合起来，一般也可以称之为时序信息建模或者时序特征集成，我们接下来继续探索时序信息融合。
+
+当然一种最为简单的方式，正如在原始的双流网络[10]中提到的，直接对不同时刻的网络预测结果进行平均，这种平均操作忽略了具体的时序结构，理论上，网络无法分清楚“开门”和“关门”的区别。在这种平均的情况下，这种模型框架只是对空间上的像素或者特征进行了2D池化，如Fig 4.5 (a)所示。
+
+现在，让我们将$T$个空间特征图$x^{\prime} \in \mathbb{R}^{H \times W \times D}$进行堆叠，那么我们就有了时序池化层的输入特征张量$\mathbf{x} \in \mathbb{R}^{H \times W \times T \times D}$。我们接下来定义两种不同的时序池化层，它们可以对时序信息进行集成。
+
+1. 3D pooling，在堆叠的特征图$\mathbf{x}$上作用以池化核尺寸为$W^{\prime} \times H^{\prime} \times T^{\prime}$的max-pooling池化核，如Fig 4.5 (b)所示。注意到，在不同通道$D$上没有进行任何的池化。
+
+2. 3D Conv+3D Pooling，用一系列卷积核大小为$\mathbf{f} \in \mathbb{R}^{W^{\prime\prime} \times H^{\prime\prime} \times T^{\prime\prime} \times D \times D^{\prime}}$的卷积核和尺寸为$\mathbf{b} \in \mathbb{R}^{D^{\prime}}$的偏置对堆叠的特征图 $\mathbf{x}$ 进行卷积后，进行3D池化，如Fig4.5 (c)所示，有：
+   $$
+   \mathbf{y} = \mathbf{x}_t *\mathbf{f} + \mathbf{b}
+   \tag{4.6}
+   $$
+   
+
+![temporal_pooling_3d2d][temporal_pooling_3d2d]
+
+<div align='center'>
+    <b>
+        Fig 4.5 三种不同的时序池化方式，留意图中的坐标轴的标签。
+    </b>
+</div>
+如Fig 4.6所示，作者接下来对以上提到的若干种时序特征建模进行了实验，发现3D conv+3D pooling效果最好。
+
+![which_temporal_pooling_better][which_temporal_pooling_better]
+
+<div align='center'>
+    <b>
+        Fig 4.6 作者尝试了若干种时序特征建模的方式，发现3D conv+3D pooling的方式效果最好。
+    </b>
+</div>
+
+
+
+### 双流融合网络
+
+基于之前的讨论，作者根据Fig 4.7所示的基本框架提出了双流融合网络（Two-Stream Fusion Network），这个网络在双流信息融合上花了一番心思设计。作者在conv5层后进行双流信息的3D conv fusion融合，同时，作者并没有截断时间流信息（这里的时间流信息是多张RGB帧层叠而成，见Fig 4.7的右半部分），而是用刚才提到的时序信息融合，用3D Conv+3D Pooling的方式融合了时序信息流，于是我们有两个分支：一个是时间-空间双流融合信息，一个是时序特征流。如Fig 4.8的spatia-temporal loss和temporal loss所示。
+
+![2stream_fused_network_framework][2stream_fused_network_framework]
+
+<div align='center'>
+    <b>
+        Fig 4.7 双流融合网络的主干框架。
+    </b>
+</div>
+
+![two_stream_fused_network][two_stream_fused_network]
+
+<div align='center'>
+    <b>
+        Fig 4.8 双流融合网络的网络框图，主要有时空损失和时序损失组成，其前端和传统的双流网络没有太大区别，主要是在时序融合上采用了3D conv+3D pooling的方式。
+    </b>
+</div>
+
+整个网络的实验结果如下图所示：
+
+![two_stream_fusiong_expresult][two_stream_fusiong_expresult]
+
+双流融合网络在用少于C3D的参数量的同时，提高了模型性能，是双流信息融合网络系列的开山鼻祖。我们之后的很多网络，包括I3D等，都是由它启发而来。
 
 ## 将2D卷积网络预训练模型扩展到3D卷积网络上
+
+还记得我们之前谈到3D卷积网络有个很大的缺点是啥吗？3D卷积网络很难直接应用在图像数据上预训练的结果，导致经常需要大规模的标注视频数据集进行预训练，然而这种数据远比图片数据难收集。文献[13]的作者发现了这个问题，提出了两个解决方案：
+
+1. 采集大规模标注视频数据集Kinetics ——这点很直接粗暴，但是很有用。
+2. 采用将已经预训练好了的2D卷积网络的2D卷积核“膨胀”（inflate）到对应的3D卷积核的操作，利用了预训练的CNN模型。这个模型作者称之为I3D（Inflated 3D ConvNets）。
+
+如果把之前已经介绍过了的几种模型都列成一个简图，那么我们有Fig 4.9。其中(a)-(d)我们在之前的内容中介绍过了，而(e) Two-Stream 3D-ConvNet也就是本节所说的I3D网络。我们可以发现，这种网络的基本框架还是利用了双流网络的结构，只不过把
+
+![5types_networks][5types_networks]
+
+<div align='center'>
+    <b>
+        Fig 4.9 五种动作识别的网络简图，前四种我们已经介绍过了。
+    </b>
+</div>
+
+
 
 
 
@@ -504,10 +594,6 @@ $$
 
 TSN 缓解了长时间依赖的问题
 
-Kinectics 哪个，I3D 提供了双流网络和3D网络的结合，可以使用ImageNet预训练
-
-TwoStreamFused 系列方法，将时序和空间序对应起来了
-
 HiddenTwoStream 使用了深度网络在运行时生成光流图，不需要预计算光流图了
 
 T3D 
@@ -517,6 +603,8 @@ T3D
 
 
 # 其他模态的视频序列动作分析
+
+
 
 
 
@@ -570,7 +658,7 @@ T3D
 
 [12]. Tran D, Bourdev L, Fergus R, et al. Learning spatiotemporal features with 3d convolutional networks[C]//Proceedings of the IEEE international conference on computer vision. 2015: 4489-4497.
 
-[13]. Carreira J, Zisserman A. Quo vadis, action recognition? a new model and the kinetics dataset[C]//proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2017: 6299-6308.
+[13]. Carreira J, Zisserman A. Quo vadis, action recognition? a new model and the kinetics dataset[C]//proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2017: 6299-6308. （I3D）
 
 [14]. Sun L, Jia K, Yeung D Y, et al. Human action recognition using factorized spatio-temporal convolutional networks[C]//Proceedings of the IEEE international conference on computer vision. 2015: 4597-4605.
 
@@ -639,4 +727,23 @@ T3D
 
 [fusion_params_number]: ./imgs/fusion_params_number.jpg
 [where_to_fuse]: ./imgs/where_to_fuse.jpg
+[fusion_loc]: ./imgs/fusion_loc.jpg
+[two_stream_fused_network]: ./imgs/two_stream_fused_network.jpg
+
+[temporal_pooling_3d2d]: ./imgs/temporal_pooling_3d2d.png
+
+[which_temporal_pooling_better]: ./imgs/which_temporal_pooling_better.png
+[2stream_fused_network_framework]: ./imgs/2stream_fused_network_framework.png
+[two_stream_fusiong_expresult]: ./imgs/two_stream_fusiong_expresult.png
+[5types_networks]: ./imgs/5types_networks.png
+
+
+
+
+
+
+
+
+
+
 
