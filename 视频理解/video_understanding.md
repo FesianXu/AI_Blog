@@ -1035,17 +1035,51 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
     </b>
 </div>
 
-
+当然基于图像的pretext任务还有很多，比如对输入图像进行指定角度的旋转[54]，训练模型去判断这个图像旋转角度是多少，因为旋转角度是自己指定的有限集中的一个，因此是有标签的，如Fig 7.3所示。也有一种是非常出名的方法，通过拼拼图（jigsaw puzzle）[55]的方式进行pretext任务的定义。如Fig 7.4所示，我们在图像上指定了九个拼图块，每一个块都有其固定的编号从1-9。我们随意进行打乱后，期望网络可以对其重新排序，恢复正常的顺序。
 
 ![rotate_image_self_sup][rotate_image_self_sup]
 
-
-
-
-
-
+<div align='center'>
+    <b>
+        Fig 7.3 在这种自监督策略中，模型需要判断图像的旋转角度是多少。
+    </b>
+</div>
 
 ![self-sup-jigsaw-puzzle][self-sup-jigsaw-puzzle]
+
+<div align='center'>
+    <b>
+        Fig 7.4 对图片块进行拼拼图（jigsaw puzzle）的方式进行自监督学习。
+    </b>
+</div>
+
+这些pretext任务，都是让无标签的数据自己产生了标签，让模型学习到了样本本身的语义特征，虽然这个pretext任务和我们的目标任务（比如动作识别，物体检测，定位）等大相径庭，但是它们的数据流形是一样的，共享着语义特征空间，因此通过自监督学习的方式，可以利用海量的无标签的数据学习出更为理想的表征（representation）。
+
+在文章[51]中，研究者针对视觉任务，对自监督的效果进行了广泛的基线测试。作者发现自监督的无标签数据集数据量越大，模型的效果越好，如Fig 7.5所示。同时作者发现，对于设定pretext任务的复杂度，对于整体模型的性能也是有很大影响的，如Fig 7.6所示。
+
+![self_pretrain_scale][self_pretrain_scale]
+
+<div align='center'>
+    <b>
+        Fig 7.5 自监督的数据集越大，效果越好。
+    </b>
+</div>
+
+![scale_problem_complex][scale_problem_complex]
+
+<div align='center'>
+    <b>
+        Fig 7.6 控制自监督pretext任务的问题复杂度对于性能有很大影响。
+    </b>
+</div>
+
+该文章还进行了很多其他实验，在多种视觉任务中提供了自监督学习的坚实的（solid）基线标准，值得各位读者仔细研读。
+
+
+
+## 基于视频的自监督学习
+
+
 
 
 
@@ -1167,7 +1201,9 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 [53]. Misra I, Zitnick C L, Hebert M. Shuffle and learn: unsupervised learning using temporal order verification[C]//European Conference on Computer Vision. Springer, Cham, 2016: 527-544.
 
+[54]. Gidaris S, Singh P, Komodakis N. Unsupervised representation learning by predicting image rotations[J]. arXiv preprint arXiv:1803.07728, 2018.
 
+[55]. Noroozi M, Favaro P. Unsupervised learning of visual representations by solving jigsaw puzzles[C]//European Conference on Computer Vision. Springer, Cham, 2016: 69-84.
 
 
 
@@ -1268,10 +1304,8 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 [word_self_supervision]: ./imgs/word_self_supervision.png
 [rotate_image_self_sup]: ./imgs/rotate_image_self_sup.png
 [self-sup-jigsaw-puzzle]: ./imgs/self-sup-jigsaw-puzzle.png
-
-
-
-
+[self_pretrain_scale]: ./imgs/self_pretrain_scale.png
+[scale_problem_complex]: ./imgs/scale_problem_complex.png
 
 
 
