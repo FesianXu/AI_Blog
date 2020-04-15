@@ -681,12 +681,75 @@ $$
 在本框架中，我们需要对骨骼点序列进行两种最为主要的操作：
 
 1. 如何对单帧的骨骼点信息进行组织
+2. 如何组织时序信息
 
+对单帧的骨骼点信息进行组织并不容易，因为单帧的骨骼点数据是一种Graph数据，或者也可以看成是一种Tree数据，需要指定特定的遍历策略将这种数据“拉平”成一维向量。单纯地按照关节点的顺序从1到25的遍历一遍骨骼点显然不能有效组织空间信息。举个例子，某些动作如跑步，双腿的规律性运动通常也会伴随着双臂的规律性摆动，这种身体部件与身体部件有关的关联，用这种简单的方法不能很好地进行建模。
 
+在P-LSTM[28]中，作者采用LSTM作为基本的框架组织时序信息，同时，作者对LSTM的输入门，遗忘门，和门控门进行了魔改。作者把身体划分为五大部件，如Fig 5.5所示。通过这种方式，对不同身体部件之间的空间语义关系进行了初步的建模。
 
+![plstm][plstm]
 
+<div align='center'>
+    <b>
+        Fig 5.5 在P-LSTM中，作者把人体部件分为五大部分，并且分别输入P-LSTM单元中。
+    </b>
+</div>
+
+在[29]中，作者提出ST-LSTM，利用LSTM进行3D骨骼点时间序列的时间-空间信息融合，并且开创性地采用了人体骨骼点的树形索引进行骨骼点的检索，如Fig 5.6所示。3D骨骼点数据难免存在一些因估计导致的噪声，因此并不是所有骨骼点都是可信的。在[29]中，不仅用LSTM对骨骼点数据进行时空上的信息组织，而且在传统的LSTM细胞中引入了置信门(Trust Gate)分析每一个时空步中每个节点的可靠程度。
+
+![tree_tra][tree_tra]
+
+<div align='center'>
+    <b>
+        Fig 5.6 对骨骼点数据的树形索引方式。
+    </b>
+</div>
+
+![st-lstm][st-lstm]
+
+<div align='center'>
+    <b>
+        Fig 5.7 在ST-LSTM中，在Spatial空间域和Temporal时间域都有LSTM单元，对骨骼点序列的时空信息，包括带噪声的骨骼点进行了建模。
+    </b>
+</div>
+总结来说，在这种方法中对于骨骼点信息的空间信息组织是一件不容易的事情，单纯的分部件或者树形索引，在某些程度上也不能很好地遍历身体不同部件之间的关系，也没有显式地提供让后续网络学习到这种关系的通道。
 
 ## 二维图像化CNN建模
+
+我们之前分析过骨骼点序列不能应用于2D ConvNets的原因。然而我们可以考虑把骨骼点序列转化为二维图像类似的数据结构，从而直接应用2D卷积网络。考虑到骨骼点序列的通常输入张量尺寸为$\mathbf{s} \in \mathbb{R}^{300,25,3}$，其中300是帧数，25是节点数，3是维度。我们发现，如果把300看成是图像的height，25看成是图像的width，3看成是图像的通道数，如Fig 5.8所示，那么骨骼点序列就天然地变成了一种二维图像。
+
+这种方法在[30]中得到了描述和实验，开创了一种利用二维图像化CNN建模的方式。在这类型的方法中，2D CNN网络同时对空间-时间信息进行了建模。不过和LSTM时序组织模型类似，其有一个很大的难点，就是我们需要对单帧数据进行遍历，才能排列成二维图像的一列（也可以是一行），这种遍历规则通常需要指定，这里就涉及到了人工设计排序的过程，不能很好地组织起身体部件之间的空间关联性。
+
+
+![skel-cnn][skel-cnn]
+
+<div align='center'>
+    <b>
+        Fig 5.8 Skel-CNN对骨骼点序列进行二维图像化处理，将骨骼点序列转变为二维图像，从而后续可以采用2D CNN模型进行特征提取。
+    </b>
+</div>
+除此之外，还有和此有关的研究方法。在[31]中，作者不是利用原始的空间坐标，而是找出人体某些相对稳定的关节点（称之为根关节点），用其他关节点对其做欧式距离后，同样按照时间轴方向拼接，形成多个以不同根关节点为基的二维特征图，尔后用多任务卷积网络进行特征提取和分类，如Fig 5.9所示。这种方法利用不同骨骼点与根关节点（比如图中的5，8，11，14关节点）进行欧式距离计算，得到了全身各个部件之间的彼此相对距离二维图，这种图显然是带有全身各个部件之间的关系信息的，在组织帧内的空间关系上做得更好，因此更加鲁棒。
+
+![new_repre_skel][new_repre_skel]
+
+<div align='center'>
+    <b>
+        Fig 5.9 使用单帧内的骨骼点部件之间的相对距离作为信息源，形成了一系列的二维欧式距离图像后进行卷积。
+    </b>
+</div>
+
+这些谈到的方法都是对帧内骨骼点信息进行组织，还有一种方法考虑组织帧间之间的motion流关系，这种组织方法对于拍摄角度和运动角度更为鲁棒。在工作[32]中，
+
+
+
+
+
+![visual_net][visual_net]
+
+
+
+
+
 
 
 
@@ -788,7 +851,21 @@ $$
 
 [27]. https://blog.csdn.net/LoseInVain/article/details/90348807
 
-[28]. 
+[28]. A. Shahroudy, J. Liu, T. T. Ng, et al. Ntu rgb+d: A large scale dataset for 3d human activity analysis[C]. IEEE Conference on Computer Vision and Pattern Recognition, 2016, 1010-1019 (P-LSTM)
+
+[29]. Liu J, Shahroudy A, Xu D, et al. Spatio-temporal lstm with trust gates for 3d human action recognition[C]//European Conference on Computer Vision. Springer, Cham, 2016: 816-833. (ST-LSTM)
+
+[30]. Y. Du, Y. Fu, L. Wang. Skeleton based action recognition with convolutional neural network[C]. Pattern Recognition, 2016, 579-583 (Skel-CNN)
+
+[31]. Ke Q, Bennamoun M, An S, et al. A new representation of skeleton sequences for 3d action recognition[C]//Computer Vision and Pattern Recognition (CVPR), 2017 IEEE Conference on. IEEE, 2017: 4570-4579.
+
+[32]. Liu M, Liu H, Chen C. Enhanced skeleton visualization for view invariant human action recognition[J]. Pattern Recognition, 2017, 68: 346-362.
+
+[33]. S. Yan, Y. Xiong, D. Lin. Spatial temporal graph convolutional networks for skeleton-based action recognition[C]. The Association for the Advance of Artificial Intelligence, AAAI, 2018, 5344-5352 (ST-GCN)
+
+
+
+
 
 
 
@@ -856,7 +933,13 @@ $$
 [2dpose_to_3dpose]: ./imgs/2dpose_to_3dpose.gif
 [skeleton_xyz]: ./imgs/skeleton_xyz.png
 
+[plstm]: ./imgs/plstm.png
+[tree_tra]: ./imgs/tree_tra.png
+[st-lstm]: ./imgs/st-lstm.png
+[skel-cnn]: ./imgs/skel-cnn.png
 
+[new_repre_skel]: ./imgs/new_repre_skel.png
+[visual_net]: ./imgs/visual_net.png
 
 
 
