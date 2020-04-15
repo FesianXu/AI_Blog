@@ -712,7 +712,7 @@ $$
         Fig 5.7 在ST-LSTM中，在Spatial空间域和Temporal时间域都有LSTM单元，对骨骼点序列的时空信息，包括带噪声的骨骼点进行了建模。
     </b>
 </div>
-总结来说，在这种方法中对于骨骼点信息的空间信息组织是一件不容易的事情，单纯的分部件或者树形索引，在某些程度上也不能很好地遍历身体不同部件之间的关系，也没有显式地提供让后续网络学习到这种关系的通道。
+总结来说，在这类型方法中对于骨骼点信息的空间信息组织是一件不容易的事情，单纯的分部件或者树形索引，在某些程度上也不能很好地遍历身体不同部件之间的关系，也没有显式地提供让后续网络学习到这种关系的通道。
 
 ## 二维图像化CNN建模
 
@@ -738,34 +738,63 @@ $$
     </b>
 </div>
 
-这些谈到的方法都是对帧内骨骼点信息进行组织，还有一种方法考虑组织帧间之间的motion流关系，这种组织方法对于拍摄角度和运动角度更为鲁棒。在工作[32]中，
-
-
-
-
+这些谈到的方法都是对帧内骨骼点信息进行组织，还有一种方法考虑组织帧间之间的motion流关系，这种组织方法对于拍摄角度和运动角度更为鲁棒。在工作[32]中，作者把骨骼点序列的关节点与关节点之间，在时序上的轨迹连接可视化为二维图像，如Fig 5.10所示，因为这种可视化结果经常不够清晰，可能伴有较为严重的缺损，因此作者同时对其进行了图像增强后，用2D卷积网络进行特征提取。
 
 ![visual_net][visual_net]
 
+<div align='center'>
+    <b>
+        Fig 5.10 对骨骼点序列的帧间信息进行motion流组织，并且将其可视化成二维图像后，对该二维图像进行增强，尔后采用2D卷积网络进行特征提取。
+    </b>
+</div>
 
+![motion_track][motion_track]
 
+<div align='center'>
+    <b>
+        Fig 5.11 对motion流的轨迹进行可视化，并且对可视化后的二维图像进行了增强处理
+    </b>
+</div>
 
-
-
-
-
+总的来说，这类型的方法中，采用CNN同时对时空信息进来组织，效果有时候会比用LSTM进行组织更稳定，但是同样面对着如何设计单帧遍历节点规则的问题。
 
 
 ## 图神经网络建模
 
+如Fig 5.12所示，骨骼点序列天然地是个时空graph图数据，可以考虑用图神经网络（Graph Neural Network， GNN）进行处理。正如笔者在之前的博客上谈到的[25,26,27]，已有多种关于图神经网络的研究，其中以图卷积网络（Graph Convolutional Network，GCN）为代表，具体的关于GCN和信息传导的推导见笔者之前博客，在此不再赘述。
+
+在工作[33]中，作者提出了Spatial-Temporal GCN，STGCN，也就是时空图卷积网络。在这个工作中，作者对传统的卷积操作进行了延伸扩展，如式子(5.2)所示，
+$$
+f_{out}(\mathbf{x}) = \sum_{h=1}^{K} \sum_{w=1}^{K} f_{in}(\mathbf{p}(\mathbf{x}, h,w) \cdot \mathbf{w}(h,w))
+\tag{5.3}
+$$
+其中的$K$为卷积核的大小。作者重新定义了领域采样函数$\mathbf{p}(\mathbf{x}, h, w)$，即是对于一个当前的像素或者图节点，怎么去对周围的节点或者像素进行采样，对于二维图像来说，只需要简单的找邻居就行了，而graph数据则不能这样进行了。 作者根据重新定义的领域采样函数，定义了对应的权值函数$\mathbf{w}(h,w)$。当然，这里只是对于空间的图卷积，作者在时间域也定义了相似的领域采样和权值，因此可以延伸到时空图卷积，STGCN。最终对每个STGCN单元进行堆叠，如Fig 5.13所示，并且受到ResNet的启发，引入short-cut和block设计，达到了SOTA的效果。
+
+![skeleton_graph][skeleton_graph]
+
+<div align='center'>
+    <b>
+        Fig 5.12 骨骼点序列天然地是个时空graph图数据。
+    </b>
+</div>
+
+![st-gcn][st-gcn]
+
+<div align='center'>
+    <b>
+        Fig 5.13 ST-GCN的处理pipeline，其中ST-GCN就是主要的特征提取网络，输入的骨骼点序列可以是3D骨骼点序列，也可以是经过姿态估计得到的2D骨骼点序列。
+    </b>
+</div>
+
+ST-GCN是一个非常经典的网络，笔者非常喜欢这个网络，这个网络设计非常的直观，性能高效，占用内存少。直接采用图卷积的方式对空间和时间的语义信息进行组织，避免了人工去设计遍历规则，在数据量大的情况下性能通常都会更好。现在相当多关于骨骼点动作识别的工作都是基于STGCN上进行的[34,35,36,37]。
 
 
-
-
-## 
 
 # 多视角动作理解
 
+所谓多视角动作理解，就是动作可能在多种不同的摄像头姿态下发生，我们设计的模型必须能在多种不同不同的摄像头姿态下对动作进行识别。这种需求面对着诸多真实场景，比如监控场景，摄像头姿态通常都千差万别，比如真实场景的动作识别（包括在移动机器人上部署的摄像头），摄像头姿态通常都是不定的，甚至是运动的，如果算法对多视角或者移动视角的摄像头拍摄的视频不够鲁棒，显然是不能够满足我们的日常生产需求的。
 
+多视角动作识别的一个很关键的问题在于多视角数据集很缺少，带有标注的，比如标注了相机姿态的数据集更是稀少。
 
 
 
@@ -863,6 +892,14 @@ $$
 
 [33]. S. Yan, Y. Xiong, D. Lin. Spatial temporal graph convolutional networks for skeleton-based action recognition[C]. The Association for the Advance of Artificial Intelligence, AAAI, 2018, 5344-5352 (ST-GCN)
 
+[34]. Yang D, Li M M, Fu H, et al. Centrality Graph Convolutional Networks for Skeleton-based Action Recognition[J]. arXiv preprint arXiv:2003.03007, 2020.
+
+[35]. Gao J, He T, Zhou X, et al. Focusing and Diffusion: Bidirectional Attentive Graph Convolutional Networks for Skeleton-based Action Recognition[J]. arXiv preprint arXiv:1912.11521, 2019.
+
+[36]. Li M, Chen S, Chen X, et al. Symbiotic Graph Neural Networks for 3D Skeleton-based Human Action Recognition and Motion Prediction[J]. arXiv preprint arXiv:1910.02212, 2019.
+
+[37]. Ji Y, Xu F, Yang Y, et al. Attention Transfer (ANT) Network for View-invariant Action Recognition[C]//Proceedings of the 27th ACM International Conference on Multimedia. 2019: 574-582.
+
 
 
 
@@ -940,6 +977,9 @@ $$
 
 [new_repre_skel]: ./imgs/new_repre_skel.png
 [visual_net]: ./imgs/visual_net.png
+[motion_track]: ./imgs/motion_track.png
+[skeleton_graph]: ./imgs/skeleton_graph.png
+[st-gcn]: ./imgs/st-gcn.png
 
 
 
