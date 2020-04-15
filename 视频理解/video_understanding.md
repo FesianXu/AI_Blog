@@ -590,26 +590,23 @@ $$
         Fig 4.10 在ImageNet上预训练对于I3D网络的性能提升。
     </b>
 </div>
-
 目前而言，I3D网络在各个benchmark数据集上的表现都不错，是一个不错的baseline基线网络。
+
+在工作[20]中，作者提到了一种有趣的方法，其可以将2D pretrain的卷积网络的参数扩展到3D卷积网络上。如Fig 4.11所示
 
 ## 内嵌光流计算的深度网络
 
+我们之前谈到的网络利用了光流信息，而这里的光流信息无一例外是需要通过人工设计的方法进行预计算的，能不能考虑一种方法可以利用深度网络提取光流信息呢？[17]的作者提出了MotionNet，如Fig 4.12所示，在基于双流网络的主干上，采用深度网络提取光流信息。作者将光流提取问题视为图形重建（image reconstruction）问题，利用bottleneck的网络结构，对给定的RGB输入$I_{RGB}$，给定其光流作为输出标签（可以通过传统算法计算得到）记为$I_{flow}$，经过监督学习可以单独训练MotionNet，待其独立训练完后，可以联合起整个网络端到端训练。
 
+![motionnet][motionnet]
 
-
+<div align='center'>
+    <b>
+        Fig 4.12 MotionNet的网络框图。
+    </b>
+</div>
 
 ## 时序采样网络
-
-
-
-
-
-TSN 缓解了长时间依赖的问题
-
-HiddenTwoStream 使用了深度网络在运行时生成光流图，不需要预计算光流图了
-
-T3D 
 
 
 
@@ -911,7 +908,7 @@ $$
 
 之前说到的都是在RGB上或者Depth数据上进行处理的方法，而在骨骼点序列上，也有很多关于多视角相关的算法。根据笔者的经验来说，骨骼点数据天然具有较好的角度不变性，如果模型设计得当，在没有显式地设计视角不变性特征的前提下，其跨视角识别能力通常都不会很差（甚至会比较理想）。但是骨骼点序列的问题在于噪声，骨骼点序列因为遮挡，会引入很多噪声，这点笔者一直在强调。笔者的一篇工作[37]也正是在尝试接近这个噪声带来的问题。
 
-不管怎么样说，还有不少方法在尝试对不同视角的骨骼点序列进行对齐的，最简单的方法如P-LSTM[28]所示，直接将身体的节点的连线（比如髋部连线）进行二维平面的旋转对齐。这种方法蛮粗暴的，还有些方法在三维空间进行旋转，如[32]和Fig 6.10所示。
+不管怎么样说，还有不少方法在尝试对不同视角的骨骼点序列进行对齐（alignment）的，这里的对齐指的是使得不同视角的同一种动作类别的样本看起来视角差异性尽量小一些。最简单的方法如P-LSTM[28]所示，直接将身体的节点的连线（比如髋部连线）进行二维平面的旋转对齐。这种方法蛮粗暴的，还有些方法在三维空间进行旋转，如[32]和Fig 6.10所示。
 
 ![3d_rotate][3d_rotate]
 
@@ -921,9 +918,56 @@ $$
     </b>
 </div>
 
+不过笔者在这里想要介绍的是所谓的View Adaptation网络，这种网络受到了Spatial Transformer Network, STN的启发，引入了一种自动学习对齐骨骼点序列的子网络。如Fig 6.10所示，这个View Adaptation Subnetwork可以自动学习不同视角之间样本间的旋转矩阵$\mathbf{R}_t$和偏移向量$\mathbf{d}_t$，使得同一种动作类别，不同视角的样本看起来更加地接近，注意到三维空间的旋转可以分解成$x,y,z$轴的旋转的组合，那我们有：
+$$
+\mathbf{R}_t = \mathbf{R}_{X}(\alpha) \mathbf{R}_{Y}(\beta) \mathbf{R}_{Z}(\gamma)
+\tag{6.2}
+$$
+其中的$\alpha,\beta,\gamma$是分别围绕坐标轴$X,Y,Z$的旋转角度。
 
+那么具体到其中的各个旋转轴矩阵，我们有：
+$$
+\mathbf{R}_{X}(\alpha) = 
+\left[
+\begin{matrix}
+1 & 0 & 0 \\
+0 & \cos(\alpha) & -\sin(\alpha) \\
+0 & \sin(\alpha) & \cos(\alpha)
+\end{matrix}
+\right]
+\tag{6.3}
+$$
 
+$$
+\mathbf{R}_{Y}(\beta) = 
+\left[
+\begin{matrix}
+\cos(\beta) & 0 & \sin(\beta) \\
+0 & 1 & 0 \\
+-\sin(\beta) & 0 & \cos(\beta)
+\end{matrix}
+\right]
+\tag{6.4}
+$$
 
+$$
+\mathbf{R}_{Z}(\gamma) = 
+\left[
+\begin{matrix}
+\cos(\gamma) & -\sin(\gamma) & 0 \\
+\sin(\gamma) & \cos(\gamma) & 0 \\
+0 & 0 & 1
+\end{matrix}
+\right]
+\tag{6.5}
+$$
+
+那么我们经过对齐后的，新的骨骼点坐标是：
+$$
+\mathbf{v}^{\prime}_{t,j} = [x_{t,j}^{\prime}, y_{t,j}^{\prime}, z_{t,j}^{\prime}]^{\mathrm{T}} = \mathbf{R}_{t} (\mathbf{v}_{t}-\mathbf{d})
+\tag{6.6}
+$$
+其中的参数$\mathbf{d}_t = [d_1,d_2,d_3]^{\mathrm{T}}$和$\alpha,\beta,\gamma$等完全由网络学习得到，其旋转和平移如Fig 6.11所示。
 
 ![view_adapter][view_adapter]
 
@@ -933,18 +977,23 @@ $$
     </b>
 </div>
 
-
-
-
-
 ![3drotate_view_adaption][3drotate_view_adaption]
 
 <div align='center'>
     <b>
-        Fig 6.10 尝试在三维空间对骨骼点序列进行旋转对齐。
+        Fig 6.11 骨骼点在三维空间的旋转和平移。
     </b>
 </div>
 
+View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，你可以在模型中随意安插这个子网络。最终结果证明了这个对齐网络的有效性，如Fig 6.12所示。
+
+![result_view_adaptation][result_view_adaptation]
+
+<div align='center'>
+    <b>
+        Fig 6.12 在NTU RGBD 60数据集上的结果证明了View Adaptation网络的有效性。
+    </b>
+</div>
 
 
 
@@ -1069,7 +1118,7 @@ $$
 
 [48]. A. Gupta, A. Shafaei, J. J. Little, and R. J. Woodham, “Unlabelled 3D motion examples improve cross-view action recognition,” in Proc. British Mach. Vis. Conf., 2014  
 
-
+[49]. Jaderberg M, Simonyan K, Zisserman A. Spatial transformer networks[C]//Advances in neural information processing systems. 2015: 2017-2025.
 
 
 
@@ -1163,7 +1212,8 @@ $$
 [view_adapter]: ./imgs/view_adapter.png
 [3drotate_view_adaption]: ./imgs/3drotate_view_adaption.png
 
-
+[result_view_adaptation]: ./imgs/result_view_adaptation.png
+[motionnet]: ./imgs/motionnet.png
 
 
 
