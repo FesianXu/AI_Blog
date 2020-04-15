@@ -1,6 +1,7 @@
 <div align='center'>
-    漫谈视频理解
+    万字长文漫谈视频理解
 </div>
+
 
 <div align='right'>
     2020/4/12 FesianXu
@@ -8,7 +9,7 @@
 
 # 前言
 
-AI算法已经渗入到了我们生活的方方面面，无论是购物推荐，广告推送，搜索引擎还是多媒体影音娱乐，都有AI算法的影子。作为多媒体中重要的信息载体，视频的地位可以说是数一数二的，然而目前对于AI算法在视频上的应用还不够成熟，理解视频内容仍然是一个重要的问题亟待解决攻克。本文对视频理解进行一些讨论，虽然只是笔者对互联网的一些意见的汇总和漫谈，有些内容是笔者自己的学习所得，希望还是能对诸位读者有所帮助。**如有谬误，请联系指出，转载请注明出处。**
+AI算法已经渗入到了我们生活的方方面面，无论是购物推荐，广告推送，搜索引擎还是多媒体影音娱乐，都有AI算法的影子。作为多媒体中重要的信息载体，视频的地位可以说是数一数二的，然而目前对于AI算法在视频上的应用还不够成熟，理解视频内容仍然是一个重要的问题亟待解决攻克。本文对视频理解进行一些讨论，虽然只是笔者对互联网的一些意见的汇总和漫谈，有些内容是笔者自己的学习所得，希望还是能对诸位读者有所帮助。**如有谬误，请联系指出，转载请联系作者，并且注明出处。谢谢。**
 
 $\nabla$联系方式：
 **e-mail**: [FesianXu@gmail.com](mailto:FesianXu@gmail.com)
@@ -88,8 +89,6 @@ github: https://github.com/FesianXu
 1. 需要大量的算力，视频的大小远大于图片数据，需要更大的算力进行计算。
 2. 低质量，很多真实视频拍摄时有着较大的运动模糊，遮挡，分辨率低下，或者光照不良等问题，容易对模型造成较大的干扰。
 3. 需要大量的数据标签！特别是在深度学习中，对视频的时序信息建模需要海量的训练数据才能进行。时间轴不仅仅是添加了一个维度那么简单，其对比图片数据带来了时序分析，因果分析等问题。
-
-
 
 # 视频动作理解——新手村
 
@@ -592,7 +591,15 @@ $$
 </div>
 目前而言，I3D网络在各个benchmark数据集上的表现都不错，是一个不错的baseline基线网络。
 
-在工作[20]中，作者提到了一种有趣的方法，其可以将2D pretrain的卷积网络的参数扩展到3D卷积网络上。如Fig 4.11所示
+此外，在工作[20]中，作者提到了一种有趣的方法，其可以将2D pretrain的卷积网络的参数扩展到3D卷积网络上。如Fig 4.11所示，这种方法采用了类似于Teacher-Student Learning的方法，主要有两个分支，第一个分支是蓝色显示的预训练好了的2D卷积网络，第二个分支是绿色显示的需要进行迁移参数的3D卷积网络，我们的蓝色分支对输入的RGB单帧进行处理，绿色分支对视频片段进行处理，我们的绿色和蓝色分支的输入可能来自于同一个视频，称之为正样本对，也可能来自于不同视频，称之为负样本对，我们的网络目标就是判断这两个输入是否是正样本还是负样本，用0/1表示。通过这种手段，我们可以让3D卷积网络学习到2D卷积预训练网络的知识。
+
+![T3D_2d3d_weights][T3D_2d3d_weights]
+
+<div align='center'>
+    <b>
+        Fig 4.11 T3D中提到的利用2D卷积网络的预训练模型去初始化3D卷积网络参数的方法。
+    </b>
+</div>
 
 ## 内嵌光流计算的深度网络
 
@@ -605,10 +612,6 @@ $$
         Fig 4.12 MotionNet的网络框图。
     </b>
 </div>
-
-## 时序采样网络
-
-
 
 
 
@@ -670,8 +673,6 @@ $$
 3. 把骨骼点序列看成时空图（spatia-temporal graph）数据，利用图神经网络，比如GCN图卷积网络进行建模[25,26,27]。
 
 接下来笔者在各个小节将对这几点进行展开，休息一下，我们要开始了哦~
-
-
 
 ## LSTM时序组织模型
 
@@ -998,7 +999,53 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 
 
-# 在视频动作理解中应用自监督，无监督学习
+# 在视频动作理解中应用自监督学习
+
+众所周知，深度学习是数据驱动的（data-driven），非常需要有标注的良好数据去喂养模型。然而现实中我们并没有那么多有标注的数据，标注数据是非常耗时耗力耗财的。而我们在一开始就已经说过，每天互联网上产生着那么多的无标签的视频数据，不加以运用过于可惜，我们需要考虑如何让模型在无标签的视频上“汲取”知识和养分，在不进行人工标注的情况下，提高模型的性能。
+
+## 自监督学习背景
+
+自监督学习（self-supervised Learning）是无监督学习中的一个有趣的分支，在介绍自监督学习之前，笔者打算举个例子。假如我们现在有一个8位灰度图像，其尺寸为10*10，也就是灰度级为256。那么显然的，如果对所有可能的像素值的情况进行遍历，我们的图片像素空间非常大，为$256^{100}$。这还只是在如此小的尺寸下的一个灰度图的像素空间。
+
+然而，大多数情况下，很多像素组合是没有任何语义的，也就是说，你在现实中根本见不到这种像素组合，我们把所有可能在现实中见到的像素组合在高维空间中表示为一个点，那么所有的点的组合构成了流形（manifold）。也就是说，我们的一切可能的样本采样都来自于这个流形。
+
+对这个流形的形状进行建模很重要，但是显然不可能完全精确地描述这个流形，因为你需要几乎无数的样本才足以描述。在强监督学习中，我们现在有的只是这个流形上的一些有过标注的样本（流形上的某些点可能代表一个类别，某些点可能是另一个类别），然而我们可以用无标签的样本去填补这个流形的缺口，尝试去尽可能地描述这个流形，这是无监督学习整体来说在做的事情。
+
+但是我们这个假设有个前提，每个像素之间的独立无关的，然而现实是像素与像素之间很可能存在有语义关系，我们通常可以用一个像素去估计其周围的像素，一般变化都不会特别大，就说明了这一点。因此我们可以进一步缩小无监督中需要的样本数，我们因此有了自监督学习。
+
+在自监督学习中，我们让无标签的样本自己产生自己的标签，因此我们就可以在无标签样本上进行强监督训练了。我们需要定义出一个pretext任务，我们在无标签的数据集上训练这个pretext任务，通常我们并不很在意这个pretext模型的性能表现。在得到了模型参数之后，我们以这个模型的参数作为初始化，再在有标签的数据集上进行训练得到最后的模型。
+
+让无标签的样本自己产生自己的标签显得很神奇，但其实并不难，比如一张图片，我们可以把其中某一块扣掉，然后让模型根据没有扣掉的部分去填充扣掉部分的图形，这种叫inpainting，如Fig 7.1所示。
+
+![inpainting_self_supervised][inpainting_self_supervised]
+
+<div align='center'>
+    <b>
+        Fig 7.1 利用inpainting进行图片的自监督学习。
+    </b>
+</div>
+
+对于文本序列样本来说，更为直接的self-supervision方法就是Word2Vec语义嵌入了，我们可以用之前的词语去预测后续的词语，也可以用后续的词语回测之前的词语，也可以给词语挖个空，根据周围的词语去预测中心词语等等，如Fig 7.2所示。
+
+![word_self_supervision][word_self_supervision]
+
+<div align='center'>
+    <b>
+        Fig 7.2 对于序列的自监督学习可以参考的方法，文本序列类似。
+    </b>
+</div>
+
+
+
+![rotate_image_self_sup][rotate_image_self_sup]
+
+
+
+
+
+
+
+![self-sup-jigsaw-puzzle][self-sup-jigsaw-puzzle]
 
 
 
@@ -1006,19 +1053,11 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 # 视频动作分析为什么可以视为视频理解的核心
 
-
-
-
-
-
+我们在上文中提到了非常多的视频动作识别的方法，涉及到了各种视频模态，为什么我们着重于讨论视频动作理解呢？明明视频理解任务有着那么多类型。无论具体的视频理解任务是什么，笔者认为视频理解的核心还是在于如何组织视频的motion流和appearance流语义信息，而动作识别任务是很好地评价一个模型是否对motion和appearance信息进行了有效组织的标准（而且对视频进行动作标签标注也比较简单），如果一个模型能够对视频动作识别任务表现良好，那么其特征提取网络可以作为不错的视频表征提取工具，给其他下流的任务提供良好的基础。
 
 # 说在最后
 
-这一路过来道阻且长，我们说了很多，但是限于篇幅，意犹未尽，我们在拾遗篇将继续我们的视频分析的旅途。
-
-
-
-
+这一路过来道阻且长，我们说了很多算法，对整个视频动作理解的发展做了一个简单的梳理，但是限于篇幅，意犹未尽，还有很多最新的论文内容在这里没有得到总结，我们在以后的拾遗篇将继续我们的视频分析的旅途。路漫漫其修远兮，吾将上下而求索。
 
 # Reference
 
@@ -1120,6 +1159,16 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 [49]. Jaderberg M, Simonyan K, Zisserman A. Spatial transformer networks[C]//Advances in neural information processing systems. 2015: 2017-2025.
 
+[50]. https://lilianweng.github.io/lil-log/2019/11/10/self-supervised-learning.html
+
+[51]. Goyal P, Mahajan D, Gupta A, et al. Scaling and benchmarking self-supervised visual representation learning[C]//Proceedings of the IEEE International Conference on Computer Vision. 2019: 6391-6400.
+
+[52]. Wang J, Jiao J, Bao L, et al. Self-supervised spatio-temporal representation learning for videos by predicting motion and appearance statistics[C]//Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2019: 4006-4015.
+
+[53]. Misra I, Zitnick C L, Hebert M. Shuffle and learn: unsupervised learning using temporal order verification[C]//European Conference on Computer Vision. Springer, Cham, 2016: 527-544.
+
+
+
 
 
 
@@ -1214,6 +1263,15 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 [result_view_adaptation]: ./imgs/result_view_adaptation.png
 [motionnet]: ./imgs/motionnet.png
+[T3D_2d3d_weights]: ./imgs/T3D_2d3d_weights.png
+[inpainting_self_supervised]: ./imgs/inpainting_self_supervised.png
+[word_self_supervision]: ./imgs/word_self_supervision.png
+[rotate_image_self_sup]: ./imgs/rotate_image_self_sup.png
+[self-sup-jigsaw-puzzle]: ./imgs/self-sup-jigsaw-puzzle.png
+
+
+
+
 
 
 
