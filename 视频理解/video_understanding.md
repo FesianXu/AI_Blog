@@ -806,30 +806,144 @@ ST-GCN是一个非常经典的网络，笔者非常喜欢这个网络，这个�
 
 多视角动作识别还有一个关键问题在于提取多视角之间的共有特征，这种在多视角样本上共享的特征通常是和动作类别紧密相关的特征，具有较好的视角不变性（view-invariant）。
 
-因此，在多视角动作理解问题上，根据笔者的研究经验，大致可以归为两种方法：
+因此，在多视角动作理解问题上，根据笔者的研究经验，大致可以归为三种方法：
 
 1. 采用一些手段扩充多视角样本数据。
 2. 提取多视角样本的公共特征。
+3. 提取视角不变特征——手工设计或者模型深度学习。
 
 根据这个总结，接下来我们讨论在RGB视频上进行多视角动作理解的一些方法。
 
 ## 在RGB视频上进行多视角动作识别
 
-
-
-
+文章[38]是考虑在深度图序列上进行多视角样本扩充，因为深度图和RGB视频较为相像，我们归到这里讨论。[38]的作者提出了一种很自然的生成多视角样本的方法是：对人体模型进行三维建模，然后设置多个虚拟相机机位，纪录下这些样本，随后再进行后处理，如Fig 6.1所示可以设置任意多个虚拟机位，一般选择180个覆盖全身即可。
 
 ![180views_samples][180views_samples]
 
+<div align='center'>
+    <b>
+        Fig 6.1 虚拟机位生成虚拟多视角样本。
+    </b>
+</div>
 
+有很多3D建模软件可以对人体模型进行很好地建模，问题在于让这个模型按照需要的动作“活动”起来，以达到模拟真实人体活动的需求。我们可以通过MoCap[46]得到的骨骼点结果（是比较准确的，通过多轴传感器结果得到的骨骼点序列，对遮挡鲁棒），让模型动起来，如Fig 6.2所示。同时，我们在其表面“附上”一层膜，因此人体模型不同深度的点就有了深度信息，最后进行深度图生成即可。
+
+![mocap_generate][mocap_generate]
+
+<div align='center'>
+    <b>
+        Fig 6.2 通过MoCap的骨骼点信息，进行3D人体模型的虚拟运动后进行多机位虚拟多视角样本提取。
+    </b>
+</div>
+
+在工作[39]中，作者同样类似的思路，采用了MoCap的骨骼点序列对3D建模好的人体模型进行动作生成，不同的是，这次作者是把不同视角的序列信息提取时序间的轨迹，具体来说，就是对于一个多视角样本，对其相同部件（比如手部，胳膊）进行时序上的跟踪，得到秘籍的轨迹图。如Fig6.3所示，最后用字典学习去学习不同视角样本的码表（用K-means进行学习）。
+
+![codebook_skeleton_mocap][codebook_skeleton_mocap]
+
+<div align='center'>
+    <b>
+        Fig 6.3 利用生成的多视角密集轨迹，进行字典学习，学习出多视角下的码表。
+    </b>
+</div>
+
+在测试阶段，我们需要利用这里学习到的码表，对输入的密集轨迹进行构建动作轨迹描述子，随后进行识别，如Fig 6.4所示。
+
+![codebook_prediction][codebook_prediction]
+
+<div align='center'>
+    <b>
+        Fig 6.4 利用学习到的码表，在预测阶段进行动作类别预测。
+    </b>
+</div>
+
+当然，刚才的解释并不完全，[39]的作者认为，不同视角之间存在一种所谓的典范视角（canonical view）的关系，也就是说，所有视角样本，通过某种方式，都应该能转化成典范样本，更进一步，不同视角样本之间都应该能通过典范样本作为中继，进行相互转换。之前的工作[47,48]大多假设这种关系是线性的，如Fig 6.5 (a)(b)所示，但是这个并不能准确描述视角样本之间的迁移关系，因此在本工作中，作者认为这种关系应该是非线性的，如Fig 6.5 (c)所示，不同样本之间共享着高层的语义空间。然而通过我们之前讨论的码表的方式可不能描述这种非线性，因为码表的码元的组织是线性的操作，因此我们需要引入一个网络进行这种非线性关系的学习，比如[39]中提出的Robust Non-linear Knowledge Transfer Model , R-NKTM模型，正如Fig 6.3和Fig 6.4所示。
+
+![share_high_level][share_high_level]
+
+<div align='center'>
+    <b>
+        Fig 6.5 作者假设不同视角样本之间的迁移并不是线性的，如果假设存在一种所谓的典范样本，那么通过高维的非线性映射才是合理的方式。
+    </b>
+</div>
+
+有些方法尝试去提取视角不变（view-invariant）的特征，自相似性矩阵（Self-Similar Matrix，SSM）[40]是一种经典的理论上的角度不变性的特征，其做法很简单，就是在时间上求帧$i$与帧$j$的欧式距离$d_{i,j}$并把它组成矩阵，如Fig 6.6所示。这类型的方法还有一些后续工作，比如[41-42]，如Fig 6.7所示。同时，我们可以发现，在一些工作对人体的各个身体部件之间进行相对距离的计算，然后拼接成特征矩阵的方法，比如[31]中，都体现了视角不变性的思想。
+
+![ssm][ssm]
+
+<div align='center'>
+    <b>
+        Fig 6.6 SSM模型尝试构造视角不变性特征。
+    </b>
+</div>
+
+![edms][edms]
+
+<div align='center'>
+    <b>
+        Fig 6.7 其他尝试构造视角不变性特征的方法，受到了SSM的启发。
+    </b>
+</div>
+
+的确，从理论上说，进行时间帧的相对距离计算（或者身体部件之间的相对距离），这个相对距离计算应该是和视角无关的，因为你不管视角怎么改变，这个相对距离也不会变化，因此是视角不变的。但是我们注意到，正如文章[2]中所说到的，骨骼点信息多多少少会因为遮挡导致变形扭曲，如Fig 6.8所示，在大面积的遮挡情况下这种现象更为明显。在存在有这种噪声的骨骼点序列中，使用我们刚才提到的根据相对距离计算得到的视角不变性特征，却容易引入更多的噪声，所谓的理论上的视角不变性便在这里被打破了。
+
+![pic_noise_1][pic_noise_1]
+
+<div align='center'>
+    <b>
+        Fig 6.8 用Kinect对遮挡动作进行姿态估计，左手部分被遮挡，但是Kinect还是对时序上的上下文进行了估计，但是这种估计常常效果不佳，容易引入估计噪声。
+    </b>
+</div>
+
+在[45]中，作者指出我们可以把多视角样本特征分解为多视角之间共享的共享特征（share features）和各个视角独有的私有特征（private features），通过这两种类型的特征的线性组合，对样本特征进行重建，公式如(6.1)。其他具体内容因为过于多数学的描述，限于篇幅，建议读者有需要的直接翻阅[45]原文。
+$$
+f = \sum_{i=1}^{N_v} \alpha_i f_i + f_{private}
+\tag{6.1}
+$$
+![share_private_features][share_private_features]
+
+<div align='center'>
+    <b>
+        Fig 6.9 提取共享特征和私有特征，经过线性组合得到样本特征。
+    </b>
+</div>
 
 ##  在骨骼点序列上进行多视角动作识别
 
+之前说到的都是在RGB上或者Depth数据上进行处理的方法，而在骨骼点序列上，也有很多关于多视角相关的算法。根据笔者的经验来说，骨骼点数据天然具有较好的角度不变性，如果模型设计得当，在没有显式地设计视角不变性特征的前提下，其跨视角识别能力通常都不会很差（甚至会比较理想）。但是骨骼点序列的问题在于噪声，骨骼点序列因为遮挡，会引入很多噪声，这点笔者一直在强调。笔者的一篇工作[37]也正是在尝试接近这个噪声带来的问题。
+
+不管怎么样说，还有不少方法在尝试对不同视角的骨骼点序列进行对齐的，最简单的方法如P-LSTM[28]所示，直接将身体的节点的连线（比如髋部连线）进行二维平面的旋转对齐。这种方法蛮粗暴的，还有些方法在三维空间进行旋转，如[32]和Fig 6.10所示。
+
+![3d_rotate][3d_rotate]
+
+<div align='center'>
+    <b>
+        Fig 6.10 尝试在三维空间对骨骼点序列进行旋转对齐。
+    </b>
+</div>
 
 
 
 
 
+![view_adapter][view_adapter]
+
+<div align='center'>
+    <b>
+        Fig 6.10 尝试在三维空间对骨骼点序列进行旋转对齐。
+    </b>
+</div>
+
+
+
+
+
+![3drotate_view_adaption][3drotate_view_adaption]
+
+<div align='center'>
+    <b>
+        Fig 6.10 尝试在三维空间对骨骼点序列进行旋转对齐。
+    </b>
+</div>
 
 
 
@@ -851,7 +965,7 @@ ST-GCN是一个非常经典的网络，笔者非常喜欢这个网络，这个�
 
 # 说在最后
 
-
+这一路过来道阻且长，我们说了很多，但是限于篇幅，意犹未尽，我们在拾遗篇将继续我们的视频分析的旅途。
 
 
 
@@ -935,6 +1049,26 @@ ST-GCN是一个非常经典的网络，笔者非常喜欢这个网络，这个�
 
 [38]. Rahmani H, Mian A. 3D action recognition from novel viewpoints[C]//Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2016: 1506-1515.
 
+[39]. Rahmani H, Mian A, Shah M. Learning a deep model for human action recognition from novel viewpoints[J]. IEEE transactions on pattern analysis and machine intelligence, 2018, 40(3): 667-681.
+
+[40]. Junejo I N, Dexter E, Laptev I, et al. Cross-view action recognition from temporal self-similarities[C]//European Conference on Computer Vision. Springer, Berlin, Heidelberg, 2008: 293-306.
+
+[41]. Kacem A, Daoudi M, Amor B B, et al. A Novel Geometric Framework on Gram Matrix Trajectories for Human Behavior Understanding[J]. IEEE transactions on pattern analysis and machine intelligence, 2018.
+
+[42]. Hernandez Ruiz A, Porzi L, Rota Bulò S, et al. 3D CNNs on distance matrices for human action recognition[C]//Proceedings of the 2017 ACM on Multimedia Conference. ACM, 2017: 1087-1095
+
+[43]. Jaderberg M, Simonyan K, Zisserman A. Spatial transformer networks[C]//Advances in neural information processing systems. 2015: 2017-2025.
+
+[44]. Zhang P, Lan C, Xing J, et al. View adaptive recurrent neural networks for high performance human action recognition from skeleton data[J]. ICCV, no. Mar, 2017.
+
+[45]. Kong Y, Ding Z, Li J, et al. Deeply learned view-invariant features for cross-view action recognition[J]. IEEE Transactions on Image Processing, 2017, 26(6): 3028-3037.
+
+[46]. Rogez G, Schmid C. Mocap-guided data augmentation for 3d pose estimation in the wild[C]//Advances in Neural Information Processing Systems. 2016: 3108-3116.
+
+[47]. A. Gupta, J. Martinez, J. J. Little, and R. J. Woodham, “3D pose from motion for cross-view action recognition via non-linear circulant temporal encoding,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit., 2014, pp. 2601–2608.  
+
+[48]. A. Gupta, A. Shafaei, J. J. Little, and R. J. Woodham, “Unlabelled 3D motion examples improve cross-view action recognition,” in Proc. British Mach. Vis. Conf., 2014  
+
 
 
 
@@ -1017,6 +1151,17 @@ ST-GCN是一个非常经典的网络，笔者非常喜欢这个网络，这个�
 [st-gcn]: ./imgs/st-gcn.png
 [result_skeleton]: ./imgs/result_skeleton.png
 [180views_samples]: ./imgs/180views_samples.png
+[mocap_generate]: ./imgs/mocap_generate.png
+[codebook_skeleton_mocap]: ./imgs/codebook_skeleton_mocap.png
+[codebook_prediction]: ./imgs/codebook_prediction.png
+[share_high_level]: ./imgs/share_high_level.png
+[ssm]: ./imgs/ssm.png
+[edms]: ./imgs/edms.png
+[pic_noise_1]: ./imgs/pic_noise_1.png
+[share_private_features]: ./imgs/share_private_features.png
+[3d_rotate]: ./imgs/3d_rotate.png
+[view_adapter]: ./imgs/view_adapter.png
+[3drotate_view_adaption]: ./imgs/3drotate_view_adaption.png
 
 
 
