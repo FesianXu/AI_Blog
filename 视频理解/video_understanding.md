@@ -1013,7 +1013,7 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 但是我们这个假设有个前提，每个像素之间的独立无关的，然而现实是像素与像素之间很可能存在有语义关系，我们通常可以用一个像素去估计其周围的像素，一般变化都不会特别大，就说明了这一点。因此我们可以进一步缩小无监督中需要的样本数，我们因此有了自监督学习。
 
-在自监督学习中，我们让无标签的样本自己产生自己的标签，因此我们就可以在无标签样本上进行强监督训练了。我们需要定义出一个pretext任务，我们在无标签的数据集上训练这个pretext任务，通常我们并不很在意这个pretext模型的性能表现。在得到了模型参数之后，我们以这个模型的参数作为初始化，再在有标签的数据集上进行训练得到最后的模型。
+在自监督学习中，我们让无标签的样本自己产生自己的标签，因此我们就可以在无标签样本上进行强监督训练了。我们需要定义出一个pretext任务，我们在无标签的数据集上训练这个pretext任务，通常我们并不很在意这个pretext模型的性能表现。在得到了模型参数之后，我们以这个模型的参数作为初始化，再在有标签的数据集上进行训练得到最后的模型。就本质上而言，自监督学习对模型进行了正则，减少了对标签样本的需求。
 
 让无标签的样本自己产生自己的标签显得很神奇，但其实并不难，比如一张图片，我们可以把其中某一块扣掉，然后让模型根据没有扣掉的部分去填充扣掉部分的图形，这种叫inpainting，如Fig 7.1所示。
 
@@ -1055,7 +1055,7 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 这些pretext任务，都是让无标签的数据自己产生了标签，让模型学习到了样本本身的语义特征，虽然这个pretext任务和我们的目标任务（比如动作识别，物体检测，定位）等大相径庭，但是它们的数据流形是一样的，共享着语义特征空间，因此通过自监督学习的方式，可以利用海量的无标签的数据学习出更为理想的表征（representation）。
 
-在文章[51]中，研究者针对视觉任务，对自监督的效果进行了广泛的基线测试。作者发现自监督的无标签数据集数据量越大，模型的效果越好，如Fig 7.5所示。同时作者发现，对于设定pretext任务的复杂度，对于整体模型的性能也是有很大影响的，如Fig 7.6所示。
+在文章[51]中，研究者针对多种不同的视觉任务，对自监督的效果进行了广泛的基线测试。研究者主要关注两个问题：自监督任务的辅助数据集的大小尺度和pretext任务的任务难度对于整个预训练过程的影响。作者发现自监督的无标签数据集数据量越大，模型的效果越好，如Fig 7.5所示。同时作者发现，对于设定pretext任务的复杂度，对于整体模型的性能也是有很大影响的，如Fig 7.6所示。
 
 ![self_pretrain_scale][self_pretrain_scale]
 
@@ -1075,11 +1075,64 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 该文章还进行了很多其他实验，在多种视觉任务中提供了自监督学习的坚实的（solid）基线标准，值得各位读者仔细研读。
 
-
-
 ## 基于视频的自监督学习
 
+我们之前谈到的是在图像数据上进行的自监督任务的例子。自监督学习的要点经常就体现在怎么根据具体的下流任务和数据模态去设计合适的自监督pretext任务，在视频数据上，其pretext任务和图像数据有所不同。视频包含着一系列在时间轴上具有语义关系的图像帧，时间上邻近的帧比其他更远的帧可能具有着更强的语义关联关系。这种特定的视频序列排序描述了物理世界逻辑的因果逻辑和推断：比如物体的运动应该是平滑的，重力方向总是朝下的（体现在物体下落）。对于视频数据来说，一种通用的模式是：在海量的无标签数据上进行一种或者多种pretext任务的训练，然后提取出其特征提取层，用有标签的数据进行fine-tune下流任务，例如动作分类，分割，定位或者物体跟踪等。
 
+对于设计基于视频的自监督pretext任务，有着以下几种逻辑。
+
+### 基于帧序列顺序
+
+视频帧自然地是按照时间顺序排列的。我们的模型理应能学习到视频帧的正确顺序，因而研究者们提出了若干基于帧序列顺序的方法。其中一类方法被称之为验证帧顺序（validate frame order）[53]，这里的pretext任务在于判断给定的一小段视频帧是否是按照正确的时间顺序排列的（所谓的有效时间顺序，valid temporal order）。模型需要具备能够从视频帧中的细微运动线索中跟踪和推理的能力，从而才能完成这个任务。
+
+首先，训练帧序列从所谓的高运动窗区域（high-motion windows）提取，每次采样5帧，记为$(f_a, f_b, f_c, f_d, f_e)$，并且其时间戳顺序为$a < b < c < d < e$。在这5帧中，我们从中构建一个正样本三元组（也就是时间顺序是正常的），记为$(f_b, f_c, f_d)$，构建两个负样本三元组（时间顺序乱序），记为$(f_b, f_a,f_d)$和$(f_b, f_e,f_d)$。超参数$\tau_{\max} = |b-d|$决定了正样本训练实例的难度（也就是越大，难度越强），超参数$\tau_{\min} = \min(|a-b|, |d-e|)$控制了负样本的难度（也就是越小，难度越强）。研究者已经证实了在动作识别类型的下流任务中，基于验证帧序列顺序的方法可以提高性能。整体框图如Fig 7.7所示。
+
+![frame-order-validation][frame-order-validation]
+
+<div align='center'>
+    <b>
+        Fig 7.7 验证帧顺序自监督方法的框图。
+    </b>
+</div>
+
+在O3N（Odd-One-Out Network）[56]中，作者同样定义了一种新的基于验证帧序列顺序的pretext任务。这个任务尝试从一堆小视频片段中挑选出乱序的一个视频片段，而其他是正常顺序的。假设给定$N+1$个输入视频片段，其中的一个被人为地乱序了，其他的$N$个片段是正常顺序的，我们的模型需要从中确定乱序的片段的位置。
+
+### 基于跟踪
+
+视频序列中物体的移动可以被视频的时序关系所追踪。在时间轴上相邻的帧中出现的物体，通常差别不会特别大，通常只会有因为细小运动或者摄像头抖动造成的干扰。因此，任何关于相同物体在相邻的视频帧上学习到的表征，在特征空间上应该是相似的。基于这个启发，[57]提出了通过跟踪视频中运动物体，达到自监督目的的方法。
+
+在具有运动信息的小时间视频窗口（比如30帧），我们从中按照时间顺序截取patch块，其中第一个块$\mathbf{x}$和最后一个块$\mathbf{x}^+$被选择作为训练样本点。我们可以预想到，因为是在小时间窗发生的动作，因此这两个时间窗的特征应该是接近的。但是如果我们简单最小化这两个patch之间的特征向量，模型最终会陷入平凡解——也就是所有的特征向量都会趋同，没有任何区别，这样并没有带来任何信息量。为了接近这个问题，我们引入第三个patch，我们同样通过乱序的方式构造了负样本$\mathbf{x}^-$。因此，我们最终期望有：
+$$
+D(\mathbf{x}, \mathbf{x}^+) > D(\mathbf{x}, \mathbf{x}^-)
+\tag{7.1}
+$$
+其中的$D(\cdot)$是余弦距离，为
+$$
+D(\mathbf{x}_1, \mathbf{x}_2) = 1 - \dfrac{f(\mathbf{x}_1)f(\mathbf{x}_2) }{||f(\mathbf{x}_1)|| \cdot ||f(\mathbf{x}_2)||}
+\tag{7.2}
+$$
+损失函数为：
+$$
+\mathcal{L}(\mathbf{x}, \mathbf{x}^+, \mathbf{x}^-) = \max(0, D(\mathbf{x}, \mathbf{x}^+)-D(\mathbf{x}, \mathbf{x}^-)+M) + R
+\tag{7.3}
+$$
+其实就是`triplet loss`，其中的$R$是正则项，具体见笔者之前博文[58]。整个网络框图见Fig 7.8。
+
+![tracking-videos][tracking-videos]
+
+<div align='center'>
+    <b>
+        Fig 7.8 对短时间窗口的物体进行跟踪自监督方法。
+    </b>
+</div>
+
+### 基于视频着色
+
+
+
+
+
+### 基于视频拼图
 
 
 
@@ -1088,6 +1141,12 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 # 视频动作分析为什么可以视为视频理解的核心
 
 我们在上文中提到了非常多的视频动作识别的方法，涉及到了各种视频模态，为什么我们着重于讨论视频动作理解呢？明明视频理解任务有着那么多类型。无论具体的视频理解任务是什么，笔者认为视频理解的核心还是在于如何组织视频的motion流和appearance流语义信息，而动作识别任务是很好地评价一个模型是否对motion和appearance信息进行了有效组织的标准（而且对视频进行动作标签标注也比较简单），如果一个模型能够对视频动作识别任务表现良好，那么其特征提取网络可以作为不错的视频表征提取工具，给其他下流的任务提供良好的基础。
+
+
+
+# 趋势
+
+
 
 # 说在最后
 
@@ -1205,6 +1264,12 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 
 [55]. Noroozi M, Favaro P. Unsupervised learning of visual representations by solving jigsaw puzzles[C]//European Conference on Computer Vision. Springer, Cham, 2016: 69-84.
 
+[56]. Fernando B, Bilen H, Gavves E, et al. Self-supervised video representation learning with odd-one-out networks[C]//Proceedings of the IEEE conference on computer vision and pattern recognition. 2017: 3636-3645.
+
+[57]. Wang X, Gupta A. Unsupervised learning of visual representations using videos[C]//Proceedings of the IEEE International Conference on Computer Vision. 2015: 2794-2802.
+
+[58]. https://blog.csdn.net/LoseInVain/article/details/103995962
+
 
 
 
@@ -1306,6 +1371,8 @@ View Adaptation网络是可以随处安插的，有点像BN层和Dropout层，�
 [self-sup-jigsaw-puzzle]: ./imgs/self-sup-jigsaw-puzzle.png
 [self_pretrain_scale]: ./imgs/self_pretrain_scale.png
 [scale_problem_complex]: ./imgs/scale_problem_complex.png
+[frame-order-validation]: ./imgs/frame-order-validation.png
+[tracking-videos]: ./imgs/tracking-videos.png
 
 
 
