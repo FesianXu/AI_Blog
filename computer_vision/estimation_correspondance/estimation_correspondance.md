@@ -189,23 +189,106 @@ $$
 
 在讨论几何距离之前，我们要明晰三种不同的概念：
 
+1. $\mathbf{x}$表示在图像上的实际测量坐标结果，比如某个像素点的坐标位置。因为存在某些成像上的误差，可能实际成像和理论应该的成像位置不一致的情况，当然理论的成像位置我们并不知道，我们能测量出的一般只是$\mathbf{x}$。
+2. $\hat{\mathbf{x}}$表示某个模型对该点的估计值。
+3. $\mathbf{\bar{x}}$表示实际实体点的理论真实值，这个通常不能被直接测量出来。
+
+-----
 
 
 
+**在一张图像上的误差，迁移误差**：
 
-**在一张图像上的误差**：
+如果我们假设在第一张图像上，其测量到的点不存在误差，也就是说假设第一张图上有$\mathbf{x} = \mathbf{\bar
+{x}}$，那么我们只需要考虑第二张图像的误差即可。一般情况下，这种情况当然不现实，这个我们在上文讨论过，因为成像误差，实际的成像位置和真正理论上的成像位置有所偏移。但是我们这个假设在某些情况下是可以接受的，比如我们现在对相机进行矫正（calibration，也即是计算相机的内参数和外参数[11]），我们会使用一种称之为矫正图样（calibration pattern）的标定板，如Fig 1.3所示，在这种标定板上交叠着黑白色的方块，其交叠点清晰，模式明显，如Fig 1.4所示。因此可以认为这些交叠的角点的成像位置和理论成像位置一致，因此我们这个假设就有用武之地了。注意，在这个情况中，我们的一个平面是标定板，一个平面是相机的成像平面，我们在试图寻找标定板角点到相机成像平面的单应性矩阵。
+
+![cal_pattern][cal_pattern]
+
+<div align='center'>
+    <b>
+        Fig 1.3 可以作为矫正图样的标定板，其必须保证完全的平面，并且图样模式清晰明显，因此每个角点（黑色图样和白色图样的交叠点）清晰，可以认为是成像位置和实际位置没有误差。
+    </b>
+</div>
+
+![cal_pattern_detect][cal_pattern_detect]
+
+<div align='center'>
+    <b>
+        Fig 1.4 标定板的角点模式非常明显，容易被程序自动识别，并且精度非常高。
+    </b>
+</div>
+
+考虑到这种假设合理的情况，我们设计出所谓的最小化 **迁移误差(transfer error)**，公式表示如(1.11)所示
+$$
+\mathcal{E}_{\mathrm{transfer}} = \sum_{i} \mathrm{d}(\mathbf{x}^{\prime}_i, H\mathbf{\bar{x}}_i)^2
+\tag{1.11}
+$$
+注意到其中的$\mathrm{d}(\cdot)$是欧几里德距离。这个公式其实就是在描述如果在知道了单应性矩阵$H$的情况下，将第一张图像的像点通过单应性矩阵投影到第二张图像上后得到投影点$H\mathbf{\bar{x}}_i$，计算实际的成像点$\mathbf{x}^{\prime}_i$与之的欧式距离。
+
+注意，这里的欧式距离$\mathrm{d}(\mathbf{x}, \mathbf{y})$其中是对$\mathbf{x}, \mathbf{y}$中的非齐次坐标进行计算的，也就是说如果$\mathbf{x} = \{x_1, x_2, x_3\}, \mathbf{y} = \{y_1,y_2,y_3\}$，其中$x_3,y_3$是齐次分量，不参与欧式距离计算，因此实际的欧式距离为：
+$$
+\mathrm{d}(\mathbf{x}, \mathbf{y})^2 = (x_1-x_2)^2+(y_1-y_2)^2
+\tag{1.12}
+$$
+总而言之，最后有：
+$$
+\hat{H} = \arg\min_{H} \mathcal{E}_{\mathrm{transfer}}
+\tag{1.13}
+$$
+
+
+----
 
 
 
+**对称迁移误差**：
+
+然而更为通用且实际的方法，是考虑所谓的对称迁移，也就是将第一张图像上的像点投射到第二张图像，计算误差$\mathcal{E}_1$；相反地，将第二张图像上的像点投影到第一张图像，计算误差$\mathcal{E}_2$，相加两个误差得到最后的对称迁移误差$\mathcal{E} = \mathcal{E}_1+\mathcal{E}_2$。公式表达如(1.14)
+$$
+\mathcal{E} = \sum_{i} \mathrm{d}(\mathbf{x}_i, H^{-1}\mathbf{x}^{\prime}_i)^2+ \mathrm{d}(\mathbf{x}^{\prime}_i,H\mathbf{x}_i)^2
+\tag{1.14}
+$$
+最后的优化结果如：
+$$
+\hat{H} = \arg \min_{H} \mathcal{E}
+\tag{1.15}
+$$
+整个过程的图示如Fig 1.5所示。
+
+![sym_transfer_loss][sym_transfer_loss]
+
+<div align='center'>
+    <b>
+        Fig 1.5 对称迁移误差的过程，进行两张图像之间像点的互相投影，并且计算误差。
+    </b>
+</div>
+
+----
 
 
-![geometric_loss][geometric_loss]
 
+**重投影误差**：
 
+我们从式子(1.14)和Fig 1.5中发现，其实我们的投影点和实际点并不是完全匹配的，因为我们的观察点都是带噪声的，并不是实际理论上的完美的点，因此即便通过单应性矩阵它们也不会完全的重合。我们可以考虑一种这种情况，假设我们通过匹配点集$\mathbf{x}_i \leftrightarrow \mathbf{x}^{\prime}_i$，我们能推算出其在现实中的实际实体点$\mathbf{X}_i$，然后通过投影，可以得到完美的一个匹配对$\mathbf{\hat{x}}_i \leftrightarrow \mathbf{\hat{x}}_i^{\prime}$，其中有$\mathbf{\hat{x}}_i^{\prime} = H\mathbf{\hat{x}}_i$。当然这里的实体点并不需要显式地进行估计，我们只需要如式子(1.16)所示地设计误差函数即可：
+$$
+\mathcal{E} = \sum_i\mathrm{d}(\mathbf{x}_i, \mathbf{\hat{x}}_i)^2+\mathrm{d}(\mathbf{x}_i^{\prime},\mathbf{\hat{x}}_i^{\prime})^2 \\
+s.t. \ \ \mathbf{\hat{x}}_i^{\prime} = \hat{H}\mathbf{\hat{x}}_i, \forall i
+\tag{1.16}
+$$
+最小化误差，有：
+$$
+\hat{H} = \arg \min_{H} \mathcal{E}
+\tag{1.17}
+$$
+因为这个过程需要重新投影，得到一个新的估计的辅助匹配对，因此称之为重投影误差(reprojection error)。整个过程如图Fig 1.6所示。对比Fig 1.5和Fig 1.6，我们能发现，我们在重投影过程中，是充分考虑了每张图的像素点的位置误差的。
 
+![reprj_error][reprj_error]
 
-
-
+<div align='center'>
+    <b>
+        Fig 1.6 重投影误差
+    </b>
+</div>
 
 
 
@@ -231,6 +314,12 @@ $$
 
 [9]. https://blog.csdn.net/LoseInVain/article/details/102883243
 
+[10]. https://blog.csdn.net/LoseInVain/article/details/102739778
+
+[11]. https://blog.csdn.net/LoseInVain/article/details/102632940
+
+
+
 
 
 
@@ -241,4 +330,13 @@ $$
 
 [fige]: ./imgs/fige.jpg
 [geometric_loss]: ./imgs/geometric_loss.png
+
+[cal_pattern]: ./imgs/cal_pattern.jpg
+[cal_pattern_detect]: ./imgs/cal_pattern_detect.png
+[sym_transfer_loss]: ./imgs/sym_transfer_loss.jpg
+[reprj_error]: ./imgs/reprj_error.jpg
+
+
+
+
 
