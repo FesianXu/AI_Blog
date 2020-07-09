@@ -2,9 +2,8 @@
     人体动作捕捉与SMPL模型 (mocap and SMPL model)
 </div>
 <div align='right'>
-    FesianXu 2020.7.5 at Alibaba internship
+    FesianXu 2020.7.5
 </div>
-
 
 
 
@@ -12,6 +11,8 @@
 # 前言
 
 笔者最近在做和motion capture动作捕捉相关的项目，学习了一些关于人体3D mesh模型的知识，其中以SMPL模型最为常见，笔者特在此进行笔记，希望对大家有帮助，如有谬误，请在评论区或者联系笔者指出，转载请注明出处，谢谢。
+
+本文参考了[12]。
 
 $\nabla$ 联系方式：
 **e-mail**: [FesianXu@gmail.com](mailto:FesianXu@gmail.com)
@@ -38,6 +39,7 @@ github: https://github.com/FesianXu
         Fig 1. 描述人体动作/姿态的若干种方法，原图出自[1]，其中的第四张图是本文需要介绍的SMPL模型，第五张图是在SMPL模型上扩展得到更多人体细节的SMPL-X模型。
     </b>
 </div>
+
 现有的人体姿态估计（human pose estimation）和mocap关系密切，现有很多关于人体姿态估计的工作已经可以在较为复杂的多人环境里面对2D 人体关节点进行准确估计了，如[2,3,4]等。但是为了能够利用捕捉到的关节点对人物动作3D建模，我们光利用2D人体关节点是不足够的，因为2D关节点到3D空间点的映射是具有歧义性的（ambiguous），因此对于同样一个2D关节点，在空间上就有可能有多种映射的可能性，如Fig 2所示，除非用多视角的图像去消除这种歧义性。
 ![2d3d_ambiguity][]
 
@@ -79,7 +81,7 @@ github: https://github.com/FesianXu
 
 # SMPL模型
 
-SMPL模型在[9]提出，其全称是**Skinned Multi-person Linear Model**，其意思很简单，Skinned表示这个模型不仅仅是骨架点了，其是有蒙皮的，其蒙皮通过3D mesh表示，3D mesh如Fig 4所示，指的是在立体空间里面用三个点表示一个面，可以视为是对真实几何的采样。具体描述见[10]。那么Multi-person表示的是这个模型是可以表示不同的人的，是通用的。Linear就很容易理解了，其表示人体的不同姿态或者不同升高，胖瘦（我们都称之为形状shape）是一个线性的过程，是可以控制和解释的（线性系统是可以解释和控制的）。那么我们继续探索SMPL模型是怎么定义的。
+SMPL模型在[9]提出，其全称是**Skinned Multi-Person Linear (SMPL) Model**，其意思很简单，Skinned表示这个模型不仅仅是骨架点了，其是有蒙皮的，其蒙皮通过3D mesh表示，3D mesh如Fig 4所示，指的是在立体空间里面用三个点表示一个面，可以视为是对真实几何的采样，其中采样的点越多，3D mesh就越密，建模的精确度就越高（这里的由三个点组成的面称之为三角面片），具体描述见[10]。Multi-person表示的是这个模型是可以表示不同的人的，是通用的。Linear就很容易理解了，其表示人体的不同姿态或者不同升高，胖瘦（我们都称之为形状shape）是一个线性的过程，是可以控制和解释的（线性系统是可以解释和易于控制的）。那么我们继续探索SMPL模型是怎么定义的。
 
 ![3d_mesh][3d_mesh]
 
@@ -90,7 +92,95 @@ SMPL模型在[9]提出，其全称是**Skinned Multi-person Linear Model**，其
 </div>
 
 
+在SMPL模型中，我们的目标是对于人体的形状比如胖瘦高矮，和人体动作的姿态进行定义，为了定义一个人体的动作，我们需要对人体的每个可以活动的关节点进行参数化，当我们改变某个关节点的参数的时候，那么人体的姿态就会跟着改变，类似于BJD球关节娃娃[11]的姿态活动。为了定义人体的形状，SMPL同样定义了参数$\beta \in \mathbb{R}^{10}$，这个参数可以指定人体的形状指标，我们后面继续描述其细节。
 
+![smpl_joints][smpl_joints]
+
+<div align='center'>
+    <b>
+        Fig 5 SMPL模型定义的24个关节点及其位置。
+    </b>
+</div>
+
+总体来说，SMPL模型是一个统计模型，其通过两种类型的统计参数对人体进行描述，如Fig 6所示，分别有：
+
+1. 形状参数（shape parameters）：一组形状参数有着10个维度的数值去描述一个人的形状，每一个维度的值都可以解释为人体形状的某个指标，比如高矮，胖瘦等。
+2. 姿态参数（pose parameters）：一组姿态参数有着$24 \times 3$维度的数字，去描述某个时刻人体的动作姿态，其中的$24$表示的是24个定义好的人体关节点，其中的$3$并不是如同识别问题里面定义的$(x,y,z)$空间位置坐标（location），而是指的是该节点针对于其父节点的旋转角度的轴角式表达(axis-angle representation)（对于这24个节点，作者定义了一组关节点树）
+
+![shape_pose][shape_pose]
+
+<div align='center'>
+    <b>
+        Fig 6 形状参数和姿态参数，原图出自[12]。
+    </b>
+</div>
+
+具体的$\beta$和$\theta$变化导致的人体mesh的变化的效果图可视化，大家可以参考博文[13]和[14]。
+
+
+
+# 继续探索SMPL模型
+
+我们大致对SMPL模型和数字人体模型参数化有了个一般性的了解后，我们继续探究不同的参数对于人体模型的影响。整个从SMPL模型合成数字人体模型的过程分为三大阶段：
+
+1. **基于形状的融合成形**  （Shape Blend Shapes）：在这个阶段，一个基模版（或者称之为统计上的均值模版） $\bar{\mathbf{T}}$ 作为整个人体的基本姿态，这个基模版通过统计得到，用$N=6890$个端点(vertex)表示整个mesh，每个端点有着$(x,y,z)$三个空间坐标，我们要注意和骨骼点joint区分。
+
+   随后通过参数$\beta$去描述我们需要的人体姿态和这个基本姿态的偏移量，叠加上去就形成了我们最终期望的人体姿态，这个过程是一个线性的过程。其中的$B_{S}(\vec{\beta})$就是一个对参数$\beta$的一个线性矩阵的矩阵乘法过程，我们接下来会继续讨论。此处得到的人体mesh的姿态称之为静默姿态(rest pose)，因为其并没有考虑姿态参数的影响。
+
+   ![stage_1][stage_1]
+
+   <div align='center'>
+       <b>
+           Fig 7 在基模版mesh上线性地叠加偏量，得到了我们期望的人体mesh。
+       </b>
+   </div>
+
+2. **基于姿态的混合成形** (Pose Blend Shapes) ：当我们根据指定的$\beta$参数对人体mesh进行形状的指定后，我们得到了一个具有特定胖瘦，高矮的mesh。但是我们知道，特定的动作可能会影响到人体的局部的具体形状变化，举个例子，我们站立的时候可能看不出小肚子，但是坐下时，可能小肚子就会凸出来了，哈哈哈，这个就是很典型的 具体动作姿态影响人体局部mesh形状的例子了。 换句话说，就是姿态参数$\theta$也会在一定程度影响到静默姿态的mesh形状。
+
+   ![stage_2][stage_2]
+
+   <div align='center'>
+       <b>
+           Fig 8 人体具体的姿态对于mesh局部形状也会有细微的影响。
+       </b>
+   </div>
+
+3. **蒙皮** (Skinning)：在之前的阶段中，我们都只是对静默姿态下的mesh进行计算，当人体骨骼点运动时，由端点(vertex)组成的“皮肤”将会随着骨骼点(joint)的运动而变化，这个过程称之为蒙皮。蒙皮过程可以认为是皮肤节点随着骨骼点的变化而产生的加权线性组合。简单来说，就是距离某个具体的骨骼点越近的端点，其跟随着该骨骼点旋转/平移等变化的影响越强。
+
+   ![stage_3][stage_3]
+
+   <div align='center'>
+       <b>
+           Fig 9 综合考虑混合成形和蒙皮后的人体mesh。
+       </b>
+   </div>
+
+附带提一句，当我们描述人体姿态和人体运动时，我们在这里的方法是计算每个关节点对于其静默模型的旋转偏差，比如对于1号节点来说，某个姿态需要旋转参数$\theta_1$的变换后，可以从静默姿态到该姿态，当然，因为整个骨骼点是符合铰链式骨骼树的，1号节点的旋转会导致其子节点的相应变化，具体的过程就是前向动力学(Forward Kinematics)的过程了。当然，这里的旋转参数即可以是轴角式的三个参数，也可以将其转化成旋转矩阵$\mathbf{R} \in \mathbb{R}^{3 \times 3}$。
+
+我们接下来详细讨论下刚才提到的三个阶段。
+
+## 基于形状的混合成形
+
+SMPL模型设定的基模版$\bar{\mathbf{T}}$是通过统计大量的真实人体mesh，得到的均值形状。通过对主要形状成分(Principal Shape Components)或者称之为端点偏移(Vertex Deviations)进行线性组合，并且在基模版上进行叠加，我们就形成了静默姿态的mesh。这里指的主要形状成分指的是在数据集中统计得到的mesh的主要变化成分。具体来说，每个主成份都是一个$6890 \times 3$的矩阵，其中某个$(x,y,z)$表示的是相对于对应的基模版上的端点的偏移。举个例子来说，Fig 10是第一个主成份和第二个主成份的可视化结果。
+
+![pca_1_2][pca_1_2]
+
+<div align='center'>
+    <b>
+        Fig 10 shape参数的第一主成份和第二主成的可视化结果，我们发现shape参数是具有可解释性的，每个维度代表着人体形状的不同维度的变化。比如视觉上来看，似乎第一个表示的是高矮，第二个表示了胖瘦。
+    </b>
+</div>
+
+我们可以用以下公式表示整个过程：
+$$
+\mathbf{V}_{shape} = \mathbf{D} \mathbf{\beta} + \mathbf{\bar{T}}
+\tag{1}
+$$
+其中$\mathbf{D} \in \mathbb{R}^{6890 \times 3 \times 10}$是10个主成份的偏移，$\beta \in \mathbb{R}^{10}$表示的是10个主成份偏移的大小，$\mathbf{\bar{T}} \in \mathbb{R}^{6890 \times 3}$表示的是基模版的mesh，$\mathbf{V}_{shape} \in \mathbb{R}^{6890 \times 3}$表示的是混合成形后的mesh。
+
+## 基于姿态的混合成形
+
+在SMPL模型中，
 
 
 
@@ -108,9 +198,13 @@ SMPL模型在[9]提出，其全称是**Skinned Multi-person Linear Model**，其
 [hmr]: ./imgs/hmr.jpg
 [3d_mesh]: ./imgs/3d_mesh.png
 
+[smpl_joints]: ./imgs/smpl_joints.png
+[shape_pose]: ./imgs/shape_pose.png
 
-
-
+[stage_1]: ./imgs/stage_1.png
+[stage_2]: ./imgs/stage_2.png
+[stage_3]: ./imgs/stage_3.png
+[pca_1_2]: ./imgs/pca_1_2.png
 
 
 
@@ -136,7 +230,13 @@ SMPL模型在[9]提出，其全称是**Skinned Multi-person Linear Model**，其
 
 [10]. https://whatis.techtarget.com/definition/3D-mesh
 
-[11]. 
+[11]. https://baike.baidu.com/item/BJD%E5%A8%83%E5%A8%83/760152?fr=aladdin
+
+[12]. https://khanhha.github.io/posts/SMPL-model-introduction/
+
+[13]. https://www.cnblogs.com/xiaoniu-666/p/12207301.html
+
+[14]. https://blog.csdn.net/chenguowen21/article/details/82793994
 
 
 
