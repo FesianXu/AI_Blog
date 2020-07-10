@@ -10,6 +10,8 @@
 
 # 前言
 
+![cover][cover]
+
 笔者最近在做和motion capture动作捕捉相关的项目，学习了一些关于人体3D mesh模型的知识，其中以SMPL模型最为常见，笔者特在此进行笔记，希望对大家有帮助，如有谬误，请在评论区或者联系笔者指出，转载请注明出处，谢谢。
 
 本文参考了[12]。
@@ -125,7 +127,7 @@ SMPL模型在[9]提出，其全称是**Skinned Multi-Person Linear (SMPL) Model*
 
 1. **基于形状的混合成形**  （Shape Blend Shapes）：在这个阶段，一个基模版（或者称之为统计上的均值模版） $\bar{\mathbf{T}}$ 作为整个人体的基本姿态，这个基模版通过统计得到，用$N=6890$个端点(vertex)表示整个mesh，每个端点有着$(x,y,z)$三个空间坐标，我们要注意和骨骼点joint区分。
 
-   随后通过参数$\beta$去描述我们需要的人体姿态和这个基本姿态的偏移量，叠加上去就形成了我们最终期望的人体姿态，这个过程是一个线性的过程。其中的$B_{S}(\vec{\beta})$就是一个对参数$\beta$的一个线性矩阵的矩阵乘法过程，我们接下来会继续讨论。此处得到的人体mesh的姿态称之为静默姿态(rest pose)，因为其并没有考虑姿态参数的影响。
+   随后通过参数$\beta$去描述我们需要的人体姿态和这个基本姿态的偏移量，叠加上去就形成了我们最终期望的人体姿态，这个过程是一个线性的过程。其中的$B_{S}(\vec{\beta})$就是一个对参数$\beta$的一个线性矩阵的矩阵乘法过程，我们接下来会继续讨论。此处得到的人体mesh的姿态称之为静默姿态(rest pose，也可以称之为T-pose)，因为其并没有考虑姿态参数的影响。
 
    ![stage_1][stage_1]
 
@@ -239,28 +241,33 @@ v_posed = v_shaped + self.posedirs.dot(lrotmin)
 
 ## 骨骼点位置估计
 
-骨骼点位置估计（Joint Locations Estimation）在这里指的是根据混合成形后的mesh端点的位置，估算出当前的需要控制的骨骼点的理想位置。
-
+因为不同人体形状具有较大差异性，因此在经过了之前谈到的两种混合成形之后，我们仍然需要根据成形后的mesh估计出符合该mesh的骨骼点，以便于我们后续对这些骨骼点进行旋转，形成我们最终期望的姿态。因此，骨骼点位置估计（Joint Locations Estimation）在这里指的是根据混合成形后静默姿态下的mesh端点的位置，估算出静默姿态的作为控制点的骨骼点的理想位置。整个过程通过式子(5)操作。其中的$\mathcal{J} \in \mathbb{R}^{(K+1) \times N}$是变换矩阵，也是通过数据集上学习训练得到，其中的$K+1=24, N=6890$。 $\mathbf{\bar{T}}+B_P(\vec{\beta}; \mathcal{S}) \in \mathbb{R}^{N \times 3}$其实就是经过基于形状混合成形后的mesh端点。那么我们最终的$J(\vec{\beta};\mathcal{J},\mathbf{\bar{T}},\mathcal{S}) \in \mathbb{R}^{(K+1) \times 3}$。整个过程可以可视化成Fig 12所示，每个骨骼点的位置由它本身最为接近的若干个mesh的端点加权决定。
 
 $$
 J(\vec{\beta};\mathcal{J},\mathbf{\bar{T}},\mathcal{S}) = \mathcal{J}(\mathbf{\bar{T}}+B_P(\vec{\beta};\mathcal{S}))
 \tag{5}
 $$
 
+![joint][joint]
 
-
-
+<div align='center'>
+    <b>
+        Fig 12 通过mesh的端点去估计作为操作点的骨骼点的空间位置。
+    </b>
+</div>
 
 
 ## 蒙皮
 
-蒙皮(Skinning)
+在经过骨骼点位置估计之后，我们便有了对整个人体数字模型进行操作的控制点了，其实就是骨骼点。当我们对骨骼点进行旋转时，我们可以像摆动球形关节娃娃一样将静默姿态下的人体摆成我们需要的姿态。人体mesh端点也会随着其周围的关节点一起变化，形成我们最后看到的人体数字模型。因此蒙皮其实是让静默姿态下的人体骨架“动起来”，并且对其蒙上“皮肤”的过程。
 
+![skinning][skinning]
 
-
-
-
-# SMPL的扩展
+<div align='center'>
+    <b>
+        Fig 13 对静默姿态下的骨骼点进行相应的旋转后，得到期望的人体姿态，相应的，骨骼点周围的mesh端点也会随之移动，形成我们最终看到的人体数字模型效果。
+    </b>
+</div>
 
 
 
@@ -288,7 +295,9 @@ $$
 
 [axis_angle_rot]: ./imgs/axis_angle_rot.png
 
-
+[joint]: ./imgs/joint.png
+[skinning]: ./imgs/skinning.png
+[cover]: ./imgs/cover.jpg
 
 
 
