@@ -117,13 +117,13 @@ SMPL模型在[9]提出，其全称是**Skinned Multi-Person Linear (SMPL) Model*
 
 具体的$\beta$和$\theta$变化导致的人体mesh的变化的效果图可视化，大家可以参考博文[13]和[14]。
 
-
+相信看到现在，诸位读者对于这种通过若干个参数去控制整个模型的姿态，形状的方法有所了解了，我们对于一个模型的形状姿态的mesh控制，一般有两种方法，一是通过手动去拉扯模型mesh的控制点以产生mesh的形变；二是通过Blend Shape，也就是混合成形的方法，通过不同参数的线性组合去“融合”成一个mesh。
 
 # 继续探索SMPL模型
 
 我们大致对SMPL模型和数字人体模型参数化有了个一般性的了解后，我们继续探究不同的参数对于人体模型的影响。整个从SMPL模型合成数字人体模型的过程分为三大阶段：
 
-1. **基于形状的融合成形**  （Shape Blend Shapes）：在这个阶段，一个基模版（或者称之为统计上的均值模版） $\bar{\mathbf{T}}$ 作为整个人体的基本姿态，这个基模版通过统计得到，用$N=6890$个端点(vertex)表示整个mesh，每个端点有着$(x,y,z)$三个空间坐标，我们要注意和骨骼点joint区分。
+1. **基于形状的混合成形**  （Shape Blend Shapes）：在这个阶段，一个基模版（或者称之为统计上的均值模版） $\bar{\mathbf{T}}$ 作为整个人体的基本姿态，这个基模版通过统计得到，用$N=6890$个端点(vertex)表示整个mesh，每个端点有着$(x,y,z)$三个空间坐标，我们要注意和骨骼点joint区分。
 
    随后通过参数$\beta$去描述我们需要的人体姿态和这个基本姿态的偏移量，叠加上去就形成了我们最终期望的人体姿态，这个过程是一个线性的过程。其中的$B_{S}(\vec{\beta})$就是一个对参数$\beta$的一个线性矩阵的矩阵乘法过程，我们接下来会继续讨论。此处得到的人体mesh的姿态称之为静默姿态(rest pose)，因为其并没有考虑姿态参数的影响。
 
@@ -178,9 +178,89 @@ $$
 $$
 其中$\mathbf{D} \in \mathbb{R}^{6890 \times 3 \times 10}$是10个主成份的偏移，$\beta \in \mathbb{R}^{10}$表示的是10个主成份偏移的大小，$\mathbf{\bar{T}} \in \mathbb{R}^{6890 \times 3}$表示的是基模版的mesh，$\mathbf{V}_{shape} \in \mathbb{R}^{6890 \times 3}$表示的是混合成形后的mesh。
 
+在文章[9]中也用公式(2)表示这个偏移量：
+$$
+B_{S}(\vec{\beta}; \mathcal{S}) = \sum_{n=1}^{|\vec{\beta}|} \beta_n \mathbf{S}_n
+\tag{2}
+$$
+其实就是等价于式子(1)中的$\mathbf{D}\beta$。不过这种形式的表示有一个好处就是容易分清楚这个数字人体模型的人工指定参数部分$\vec{\beta}$和需要模型根据数据集去学习的参数矩阵$\mathcal{S}$，通常用分号隔开了这两类型参数，后文我们将会沿用这种表述。
+
+
+
 ## 基于姿态的混合成形
 
-在SMPL模型中，
+在SMPL模型中，如Fig  5所示，通过定义了24个关节点的层次结构，并且这个层次结构是通过运动学树（Kinematic Tree）定义的，因此保证了子节点和父节点的相对运动关系。
+
+以0号节点为根节点，通过其他23个节点相对于其父节点（根据其运动学树结构可以定义出节点的父子关系）的旋转角度，我们可以定义出整个人体姿态的姿势。这里的旋转是用的轴角式表达的，一般来说，轴角式是一个四元组$(x,y,z,\theta)$，表示以$\vec{\mathbf{e}} = (x,y,z)^{\mathrm{T}}$为轴，旋转$\theta$度。本文采用的是三元数表示 $\mathbf{\theta} = (x,y,z)$，如Fig 11所示，其旋转轴为其单位向量$\vec{\mathbf{e}} = \dfrac{\mathbf{\theta}}{||\theta||}$，其旋转大小是$||\theta||$。
+
+![axis_angle_rot][axis_angle_rot]
+
+<div align='center'>
+    <b>
+        Fig 11 用轴角式表示旋转的方向和大小
+    </b>
+</div>
+
+那么表示这些非根节点的相对于父节点的相对旋转需要用$23 \times 3$个参数，为了表示整个人体运动的全局旋转（也称之为朝向，Orientation）和空间位移，比如为了表示人体的行走，奔跑等，我们还需要对根节点定义出旋转和位移，那么同样的，需要用3个参数以轴角式的方式表达旋转，再用3个参数表达空间位移。
+
+需要特别注意的是，轴角式并不方便计算，因此通常会把它转化成旋转矩阵进行计算，其参数量从3变成了$3 \times 3 =9$个。具体过程见Rodrigues公式。
+$$
+\exp(\vec{\omega_j}) = \mathcal{I}+\hat{\bar{\omega}}_j \sin(||\vec{\omega}_j||)+\hat{\bar{\omega}}_j^2\cos(||\vec{\omega}_j||)
+\tag{3}
+$$
+然而人体的朝向和空间位移不影响混合成形的mesh效果，因此在控制mesh成形方面，基于姿态的混合成形需要$R(\vec{\theta}) = 23 \times 9 = 207$个基本的pose模版，其中函数$R(\cdot)$表示的是有正弦函数和余弦函数组合成的函数，其将轴角式表达成旋转矩阵，可知道其对于$\vec{\theta}$而言是非线性的。因此，为了考虑到pose导致的混合成形的影响，我们需要对这207个旋转相关参数进行学习训练，得到矩阵$\mathcal{P} = [\mathbf{P}_1,\cdots,\mathbf{P}_{9K}] \in \mathbb{R}^{3N \times 9K}$，其中的$K=23, N=6890$。这个矩阵是需要算法根据数据集学习的，类似于式子(2)中的$\mathcal{S}$。因此，如果考虑到和静默姿态之间的差别，在对其进行差异转换到mesh端点上，我们得出以下式子进行基于姿态的混合成形：
+$$
+B_{P}(\vec{\theta};\mathcal{P}) = \sum_{n=1}^{9K} (R_n(\vec{\theta})-R_n(\vec{\theta^*})) \mathbf{P}_n
+\tag{4}
+$$
+其中的混合基底形状$\mathbf{P}_n \in \mathbb{R}^{3N}$是一个表征当前期望姿态和静默姿态之间的差别的矩阵。
+
+至此，我们对人体模型的mesh进行了基于形状和姿态的混合成形，文章[12]提供了伪代码实现，我这里贴出来下：
+
+```python
+# self.pose :   24x3    the pose parameter of the human subject
+# self.R    :   24x3x3  the rotation matrices calculated from the pose parameter
+pose_cube = self.pose.reshape((-1, 1, 3))
+self.R = self.rodrigues(pose_cube)
+
+# I_cube    :   23x3x3  the rotation matrices of the rest pose
+# lrotmin   :   207x1   the relative rotation values between the current pose and the rest pose   
+I_cube = np.broadcast_to(
+      np.expand_dims(np.eye(3), axis=0),
+      (self.R.shape[0]-1, 3, 3)
+    )
+lrotmin = (self.R[1:] - I_cube).ravel()
+
+# v_posed   :   6890x3  the blended deformation calculated from the
+v_posed = v_shaped + self.posedirs.dot(lrotmin)
+```
+
+
+
+## 骨骼点位置估计
+
+骨骼点位置估计（Joint Locations Estimation）在这里指的是根据混合成形后的mesh端点的位置，估算出当前的需要控制的骨骼点的理想位置。
+
+
+$$
+J(\vec{\beta};\mathcal{J},\mathbf{\bar{T}},\mathcal{S}) = \mathcal{J}(\mathbf{\bar{T}}+B_P(\vec{\beta};\mathcal{S}))
+\tag{5}
+$$
+
+
+
+
+
+
+## 蒙皮
+
+蒙皮(Skinning)
+
+
+
+
+
+# SMPL的扩展
 
 
 
@@ -205,6 +285,12 @@ $$
 [stage_2]: ./imgs/stage_2.png
 [stage_3]: ./imgs/stage_3.png
 [pca_1_2]: ./imgs/pca_1_2.png
+
+[axis_angle_rot]: ./imgs/axis_angle_rot.png
+
+
+
+
 
 
 
