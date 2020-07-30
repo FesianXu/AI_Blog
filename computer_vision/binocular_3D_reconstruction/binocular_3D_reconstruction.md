@@ -229,11 +229,72 @@ $$
     </b>
 </div>
 
-这个过程听起来挺美好的，然而因为存在噪声，多组不同的平行线在图片中不一定会交于一个点，这个时候我们需要鲁棒估计进行数值问题上的求解，我们之后再讨论。
+这个过程听起来挺理想，然而因为存在噪声，多组不同的平行线在图片中不一定会交于一个点，这个时候我们需要鲁棒估计进行数值问题上的求解，我们之后再讨论。
 
 ### 线段比例
 
+我们知道仿射变换是不会改变变换前后线段之间的比例，见[4]中的具体描述。这为我们计算无限远处的消失点(vanishing point)又提供了一种思路：我们可以通过引入真实三维世界中某个直线上的线段比例长度去确定消失点的位置，如Fig 9和Fig 10所示。具体的计算过程我们之后的博文进行介绍。
 
+![equal_length][equal_length]
+
+<div align='center'>
+    <b>
+        Fig 9. 根据实际世界中的线段比例去计算消失点位置。
+    </b>
+</div>
+
+![affine_rectification][affine_rectification]
+
+<div align='center'>
+    <b>
+        Fig 10. 通过引入线段比例的先验知识，从而将投影歧义性消除。
+    </b>
+</div>
+
+
+
+### 无限单应性矩阵
+
+一旦无限远处平面被确定下来，我们就确定了仿射重建，随后我们就有一个被称之为“无限单应性矩阵”（The infinite homography）的特殊矩阵。这个矩阵负责把两个相机的图像中的无限远处的消失点进行映射，是一个2D的单应性矩阵。假设相机$\mathrm{P}$对应的拍摄的图片的消失点$\mathbf{x}$对应在无限远处平面的客体点是$\mathbf{X}$，然后假设该客体点在另一个相机$\mathrm{P}^{\prime}$对应拍摄的图片的投影为$\mathbf{x}^{\prime}$。那么这个无限单应性矩阵存在有以下性质：
+$$
+\mathbf{x}^{\prime} = \mathrm{H}_{\infty} \mathbf{x}
+\tag{6}
+$$
+假设我们知道两个相机矩阵
+$$
+\begin{align}
+\mathrm{P} &= [\mathrm{M} | \mathbf{m}] \\
+\mathrm{P}^{\prime} &= [\mathrm{M}^{\prime} | \mathbf{m}^{\prime}] \\
+\end{align}
+\tag{7}
+$$
+他们是符合仿射重建的相机矩阵，那么我们有无限单应性矩阵$\mathrm{H}_{\infty} = \mathrm{M}^{\prime} \mathrm{M}^{-1}$。这个并不难证明得到，留个读者自证。结合其(6)，我们有：
+$$
+\mathbf{x}^{\prime} = \mathrm{M}^{\prime} \mathrm{M}^{-1} \mathbf{x}
+\tag{8}
+$$
+也即是说，通过寻找两个图片的对应的消失点对，我们可以计算得到无限单应性矩阵$\mathrm{H}_{\infty}$。我们接下来可以对相机矩阵中的某一个进行标准化，因此(7)变化为：
+$$
+\begin{align}
+\mathrm{P} &= [\mathrm{I} | \mathbf{0}] \\
+\mathrm{P}^{\prime} &= [\mathrm{M}^{\prime} | \mathbf{e}^{\prime}] \\
+\end{align}
+\tag{8}
+$$
+此时$\mathrm{H}_{\infty} = \mathrm{H}^{\prime}$，也就是说，通过计算得到无限单应性矩阵，我们可以恢复从仿射重建的相机矩阵。
+
+
+
+### 其中一个相机是仿射相机
+
+假设我们确定两个相机之中的其中一个是仿射相机[10]，当然，仿射相机只是对投影相机的一种近似，其近似的基本假设就是被拍摄物体的表面纹理深度对于拍摄的距离来说可以忽略不计，也就是[11]中所说的弱深度纹理，low-relief。我们知道仿射相机进行的是仿射变换，因此不会移动无限远处平面的位置，而且我们知道仿射相机的主平面(principle plane)就是无限远处平面，并且它就可以用相机矩阵的第三行向量表示。那么假设最简单的情况，我们把这个仿射相机的相机矩阵$\mathrm{P}$标准化为$\mathrm{P} = [\mathrm{I} | \mathbf{0}]$，第三行为$(0,0,1,0)^{\mathrm{T}}$，因此要把这个无限远处平面固定到$(0,0,0,1)^{\mathrm{T}}$，只需要：
+
+1. 同时简单地交换两个相机矩阵的最后两列；
+2. 同时交换每个三维客体点$\mathbf{X}_i$的最后两个坐标即可。
+
+
+
+## 相似性重建/度量重建
 
 
 
@@ -263,7 +324,11 @@ $$
 
 [9]. https://blog.csdn.net/richardzjut/article/details/10473051
 
-[10]. 
+[10]. https://blog.csdn.net/LoseInVain/article/details/102883243
+
+[11]. https://blog.csdn.net/LoseInVain/article/details/102739778
+
+[12]. 
 
 
 
@@ -281,6 +346,9 @@ $$
 
 [rectification_coplanar]: ./imgs/rectification_coplanar.jpg
 [parallel_lines]: ./imgs/parallel_lines.jpg
+
+[affine_rectification]: ./imgs/affine_rectification.jpg
+[equal_length]: ./imgs/equal_length.jpg
 
 
 
