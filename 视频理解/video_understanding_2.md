@@ -33,7 +33,7 @@ github: https://github.com/FesianXu
     </b>
 </div>
 
-这几种网络结构的优劣之处我们在[1]中做过较为详细的介绍，这里就不再赘述了。而在本文中，我们要再介绍几种比较有趣的网络构型，这几种网络结构和以上提到的网络结构存在较大的不同，值得玩味。
+这几种网络结构的优劣之处我们在[1]中做过较为详细的介绍，这里就不再赘述了。而在本文中，我们要再介绍几种比较有趣的网络构型，这几种网络结构和以上提到的网络结构存在较大的不同，值得玩味。特别的，其中 **基于图结构的视频理解** 笔者认为有着和之前的工作较大的差别，并且其出发点理论上可以解决目前抖音快手短视频上普遍存在的具有剪辑的视频的分类问题，因此在此处会进行比较详细的介绍。
 
 
 
@@ -54,8 +54,11 @@ A --> B --> C --> A --> D --> B --> D --> A --> D ...
         Fig 2.1 场景的镜头一直在切换，因此不是一个线性发生的视频。
     </b>
 </div>
+为了显式地对这种非线性的事件序列进行建模，在[7]中作者提出了用图结构去组织视频中帧间的关系，如Fig 2.2所示，其中相同颜色的方块代表是相同场景的帧，通过图（graph）的方式可以对帧间的视觉关系进行组织，使得视觉相似的帧之间的连接强度更强，而视觉效果差别较大的帧之间连接强度更弱，从而有帧级别的关系图(Frame level graph)。当然，帧间的关系可以通过图池化（graph pooling），将相似的帧聚合成一个镜头（shot），进一步可以聚成事件（event）。最终形成整个视频级别的特征嵌入。整个层次的粒度可以分为：
 
-为了显式地对这种非线性的事件序列进行建模，在[7]中作者提出了用图结构去组织视频中帧间的关系，如Fig 2.2所示，其中相同颜色的方块代表是相同场景的帧，通过图（graph）的方式可以对帧间的视觉关系进行组织，使得视觉相似的帧之间的连接强度更强，而视觉效果差别较大的帧之间连接强度更弱，从而有帧级别的关系图(Frame level graph)。当然，帧间的关系可以通过图池化（graph pooling），将相似的帧聚合成一个镜头（shot），进一步可以聚成事件（event）。最终形成整个视频级别的特征嵌入。
+```shell
+帧（Frame） --> 镜头（Shot） --> 事件(Event) --> 视频(Video)
+```
 
 ![graph_video][graph_video]
 
@@ -96,18 +99,108 @@ $$
 
 然而，只是根据(2.3)对图进行卷积操作无法进行场景，镜头的聚合，我们的图结构仍然只是静态的。因此我们需要引入图池化操作去进行帧信息的“浓缩”，我们也可以理解为是视频不同层次，粒度信息的聚合。我们可以采用的图池化操作有很多，比如存在导数，可以端到端学习的`DiffPool`[6]，也有单纯的`AveragePool`和引入了局部自注意机制的`AveragePool`。基于`DiffPool`的方式能提供更为灵活的，端到端的池化方式，但是在文章[7]中，作者只是探索了后两种池化方式。我们暂且先关注到这两种方式。
 
-1. `Average Pool` ：该方法的motivation很简单，就是即便是存在镜头场景切换，某个帧的前后若干连续帧也是大概率是连续的，也即是具有“局部连续”的特性。那么我们只需要设置一个超参数$K$作为池化核大小，然后有:
+1. `Average Pool` ：该方法的motivation很简单，就是即便是存在镜头场景切换，某个帧的前后若干连续帧也是大概率是连续的，也即是具有“局部连续”的特性。那么我们只需要设置一个超参数$K$作为池化核大小，在$K$帧内进行聚合即可，因此有:
    $$
    p^l[i,d] = \dfrac{\sum_{k=0}^{K-1}h^{l-1}[i \times K+k][d]}{K}, d \in [0,D]
    \tag{2.4}
    $$
+   ![average_pool][average_pool]
+   
+   <div align='center'>
+    <b>
+           Fig 2.4 本文采用的average pool方法示意图
+       </b>
+   </div>
+   该池化过程如Fig 2.4所示，其中$k=3$。
+   
+2. `self-attention based pool`：基于局部自注意机制的池化，其会对局部连续的帧进行加权，需要学习出加权系数$\alpha^l[i]$。
+   $$
+   \begin{aligned}
+   \alpha^l[i] &= \mathrm{softmax}(h^{l-1}[i \times K:(i+1) \times K]W^l_{\mathrm{att}}+b^l) \\
+   p^l_{\mathrm{att}}[i] &= \alpha^l[i] \otimes h^{l-1}[i \times K:(i+1) \times K]
+   \end{aligned}
+   \tag{2.4}
+   $$
+   其中$W^l_{\mathrm{att}} \in \mathbb{R}^{D \times 1}$，其中$\otimes$是克罗内克积(kronecker product)[8]，即是
+   $$
+   A \otimes B = 
+   \left[
+   \begin{matrix}
+   a_{11}B & \cdots & a_{1n}B \\
+   \vdots & \ddots & \vdots \\
+   a_{m1}B & \cdots & a_{mn}B
+   \end{matrix}
+   \right]
+   \tag{2.5}
+   $$
+   也就是说，对于原输入的每$K$个帧，我们通过注意力矩阵$W^l_{\mathrm{att}}$和偏置$b^l$共同学习得到一个权重系数$\alpha^l[i]$，这个权重系数负责这$K$个帧的权重。整个过程如Fig 2.5所示，其中$K=3$。
 
-2. 
+   ![self_attention_based_pool][self_attention_based_pool]
+   <div align='center'>
+    <b>
+        Fig 2.5 本文采用的self-attention based pooling，其根据输入特征学习出权重矩阵，将其给输入特征进行加权。
+    </b>
+   </div>
+
+一般而言，在图卷积中我们用全连接网络进行节点关系的组织，如公式(2.3)所示，其中的$h^{l-1}W^l$其实本质上就是一个全连接操作。那么在文章[7]中，作者用卷积操作取代了全连接操作，有：
+$$
+c^l[i] = h^{l-1}[i \times K:(i+1) \times K]W^l
+\tag{2.6}
+$$
+其中$W^l \in \mathbb{R}^{D \times D_2}$，$D_2$表示下一层的特征数量，本文中有$D_2 = D$。图示如Fig 2.6所示。
+
+![average_pool][average_pool]
+
+<div align='center'>
+ <b>
+        Fig 2.6 绿色区域表示是用“卷积操作”取代“全连接操作”进行图卷积的过程。
+    </b>
+</div>
+当然，因为在进行图池化过程中，图拓扑势必发生了变化，我们需要更新发生了变化之后的图结构的邻接矩阵，重新通过公式(2.1)计算即可，当然需要把输入的$f$替换成$p^{l-1}$。Fig 2.7展示了一种从15个帧节点通过图平均池化和图卷积之后变成2个特征节点的过程。
+
+![pool_conv_net][pool_conv_net]
+
+<div align='center'>
+ <b>
+        Fig 2.7 图卷积和图平均池化后的图拓扑发生了变化，因此由15个帧节点变成了2个特征节点。
+    </b>
+</div>
+
+回想到我们之前谈到整个层次的粒度可以分为：
+
+```shell
+帧（Frame） --> 镜头（Shot） --> 事件(Event) --> 视频(Video)
+```
+
+而从`Frame`到`Shot`是最为基本的单元，我们可以把`Shot`视为是由连续帧组成的短序列，这些连续帧是由单一镜头拍摄，并且表征了相同的动作语义。通过KTS(Kernel Temporal Segmentation)算法[9]，我们可以对帧进行`Shot`的分割。该方法简单来说，就是先求得各个帧的特征，然后设划分为$m$段，计算每段内的特征方差，然后求和$m$段，只要这个方差最小，我们就认为是划分正确的。用数学描述，有：
+$$
+\min_{m; t_0,\cdots,t_{m-1}} J_{m,n} := L_{m,n}+Cg(m,n)
+\tag{2.7}
+$$
+其中$L_{m,n}$为主损失，而$g(m,n)$是正则项，使得分割的段不至于太多（因为分割段数$m$也是需要学习的，不是人为指定的）。那么有：
+$$
+\begin{aligned}
+L_{m,n} &= \sum_{i=0}^{m} v_{t_{i-1},t_i} \\
+g(m,n) &= m(\log(\dfrac{n}{m})+1) \\
+v_{t_{i-1},t_i} &= \sum_{t=t_{i-1}}^{t_i} ||f_t-\mu_i||^2, \mu_i = \dfrac{\sum_{t=t_{i-1}}^{t_i} f_t}{t_{i+1}-t_i}
+\end{aligned}
+\tag{2.8}
+$$
+其中的$i$表示第$i$段的片段，而$t_{i-1}$和$t_{i}$是第$i$段`Shot`的开始点和终末点帧的编号。最终通过式子(2.8)得到的是每个段的开始点和终末点帧序号集合，如$[t_0, t_1, \cdots,t_{i-1},t_{i}]$，比如其中$t_0,t_1$是第0段序列的开始，终末点，而$t_{i-1},t_i$是第$i-1$段的开始，终末点。
+
+那么基于此，我们可以求得`Shot`的特征聚合$p^l[t][d]$，有：
+$$
+\begin{aligned}
+p^l[t][d] &= \dfrac{\sum_{k=t_i}^{t_{i-1}}f[k][d]}{t_{i}-t_{i-1}},d \in [0,D] \\
+c^l[t] &= f[t_{i-1}:t_i]W^l
+\end{aligned}
+\tag{2.9}
+$$
 
 
 
 
-
+![overall_arch][overall_arch]
 
 
 
@@ -128,9 +221,11 @@ $$
 
 [7]. Mao, Feng, et al. "Hierarchical video frame sequence representation with deep convolutional graph network." *Proceedings of the European Conference on Computer Vision (ECCV)*. 2018.
 
+[8]. [https://zh.wikipedia.org/wiki/%E5%85%8B%E7%BD%97%E5%86%85%E5%85%8B%E7%A7%AF](https://zh.wikipedia.org/wiki/克罗内克积)
 
+[9].  Potapov, D., Douze, M., Harchaoui, Z., Schmid, C.: Category-specific video summarization. In: European conference on computer vision, Springer (2014) 540-555  
 
-
+[10]. 
 
 
 
@@ -140,10 +235,13 @@ $$
 
 [5types_networks]: ./imgs2/5types_networks.png
 [non_linear_seq]: ./imgs2/non_linear_seq.png
-
 [graph_video]: ./imgs2/graph_video.png
-
 [similarity_matrix]: ./imgs2/similarity_matrix.png
+[self_attention_based_pool]: ./imgs2/self_attention_based_pool.png
+[average_pool]: ./imgs2/average_pool.png
+
+[pool_conv_net]: ./imgs2/pool_conv_net.png
+[overall_arch]: ./imgs2/overall_arch.png
 
 
 
