@@ -119,7 +119,7 @@ github: https://github.com/FesianXu
  </b>
 </div>
 
-鉴于这些问题，我们的第二种方案尝试直接从单目图片中估计人体的每个关节点的旋转信息，这种方案是一种一阶段的方案，只需要输入RGB图片，就可以输出每个关节点的旋转数据，而且这种方案有一定的机制可以恢复出双臂，双腿的自旋转自由度，因此该方案是本文的主要讨论内容，细节留到后文继续讲解。
+鉴于这些问题，我们的第二种方案尝试直接从单目图片中估计人体的每个关节点的旋转信息，这种方案是一种一阶段的方案，只需要输入RGB图片，就可以输出每个关节点的旋转数据，而且这种方案有一定的机制可以恢复出双臂，双腿的自旋转自由度，因此该方案是本文的主要讨论内容，细节留到后文继续讲解。（注解：准确说，这里的“恢复出”不准确，应该是通过添加先验，把一些明显人体不能做出来的动作进行了排除）
 
 # 基于运动估计的动捕技术
 
@@ -172,13 +172,73 @@ SMPL模型用以参数化人体模型的基本属性，比如动作姿态，形�
 
 ## 基本技术路线
 
-基于数字人体模型，我们只需要从RGB图片中估计出数字人体模型的参数即可，比如若使用SMPL数字人体模型，那么我们需要估计的参数有$72+10+3=85$个：
+基于数字人体模型，我们只需要从RGB图片中估计出数字人体模型的参数即可，比如若使用SMPL数字人体模型，那么我们需要估计的参数有$69+10+3+3=85$个（这里的旋转使用了轴角式表达，因此只有3个参数，具体见[10]）：
 
-1. 关节点的旋转信息，$\theta \in \mathbb{R}^{24 \times 3}$
+1. 关节点的旋转信息，$\theta \in \mathbb{R}^{23 \times 3}$
 2. 人体的形态参数，$\beta \in \mathbb{R}^{10}$
-3. 相机外参数，$\mathbf{t}_{\mathrm{cam}} \in \mathbb{R}^{2}$  $s \in \mathbb{R}^1$
+3. 相机外参数，$\mathbf{t}_{\mathrm{cam}} \in \mathbb{R}^{2}$，  $s \in \mathbb{R}^1$， $\mathbf{R} \in \mathbb{R}^{3}$。
 
-需要说明的是，我们一般假设渲染相机是弱透视相机[23,24]，意味着
+需要说明的是，我们一般假设渲染相机是弱透视相机[23,24]，意味着相机外参数有尺度缩放系数$s$和相对于场景的偏移$\mathbf{t}_{\mathrm{cam}} = [\mathrm{tx},\mathrm{ty}]$。需要注明的是，关节点中的根关节点，也就是Fig 3.2中的0号关节点的旋转信息是作为相机外参数看待的，表征了人体的朝向(orientation)信息，因此特别地，我们把该节点的旋转信息独立出，作为相机的旋转矩阵外参数，也就是有$\mathbf{R} \in \mathbb{R}^{3}$。
+
+我们的基本思路就是通过模型去预测回归出SMPL模型参数。[19]中提到的HMR模型是一种经典的方法，如Fig 3.4所示，对于输入的场景，首先用检测算法对其中的人体位置进行确定并且裁剪得到人体的包围框。然后用Resnet-50 [25] 作为图片特征提取器，截取自最后的平均池化层的特征输出，得到图片特征$\phi \in \mathbb{R}^{2048}$。
+
+为了更好地回归出SMPL模型参数，不能直接一次性地用网络回归出这些参数，而是通过迭代(iteration)的方式进行逐步的优化的。具体来说，如图Fig 3.5所示，首先初始化一个SMPL参数$p \in \mathbb{R}^{85}$，和特征输出$\phi \in \mathbb{R}^{2048}$进行拼接后，得到回归输入特征$\Phi \in \mathbb{R}^{2133}$。通过两层的全连接网络作为回归器，回归出SMPL模型参数$p \in \mathbb{R}^{85}$并将其反馈给输入前端，继续拼接并且循环刚才的过程。一般迭代次数设置$T = 3$。
+
+![hmr_1][hmr_1]
+
+<div align='center'>
+ <b>
+  Fig 3.4 通过模型回归出人体的SMPL模型参数[19]。
+ </b>
+</div>
+
+![hmr_iteration][hmr_iteration]
+
+<div align='center'>
+ <b>
+  Fig 3.5 HMR中利用迭代去更好地回归出SMPL参数。
+ </b>
+</div>
+
+迭代过程的代码实例如下：
+
+```python
+for i in range(n_iter):
+    xc = torch.cat([x, pred_pose, pred_shape, pred_cam], 1)
+    xc = self.fc1(xc)
+    xc = self.drop1(xc)
+    xc = self.fc2(xc)
+    xc = self.drop2(xc)
+    pred_pose = self.decpose(xc) + pred_pose
+    pred_shape = self.decshape(xc) + pred_shape
+    pred_cam = self.deccam(xc) + pred_cam
+```
+
+通过这个方法，我们可以回归出以上提到的SMPL参数，通过SMPL模型[26]可以生成数字虚拟人体模型，我们用$M(\theta,\beta)$表示该模型，通过弱透视相机（已经回归出外参数了），可以渲染得到二维平面投影，我们把这个过程表示为$M(\theta,\beta) \stackrel{\mathbf{R}}{\rightarrow} P$。
+
+注意到这里的$M(\theta,\beta) \in \mathbb{R}^{6890 \times 3}$，通过投影之后得到$P \in \mathbb{R}^{6890 \times 2}$。
+
+## 训练阶段
+
+我们在本节考虑如何去训练这个模型。我们的训练数据一般有两种类型的标注，一是2D的标注，2D标注可以由人工打标注而成，如Fig 3.6所示，这种数据的获取成本通常远比第二种方式的低很多；二是3D的标注，3D标注通常需要用专用设备，比如3D扫描仪进行扫描后标注，这种数据通常获取昂贵，不容易得到。
+
+![coco_pose][coco_pose]
+
+<div align='center'>
+ <b>
+  Fig 3.6 COCO数据中的2D关节点手工标注示例。
+ </b>
+</div>
+
+考虑到训练数据标注的多样性并且以2D标注为主，一般考虑用重投影(reprojection)得到的2D关节点作为预测进行损失计算。
+
+
+
+## 考虑到时序信息
+
+
+
+
 
 
 
@@ -232,7 +292,11 @@ SMPL模型用以参数化人体模型的基本属性，比如动作姿态，形�
 
 [24]. https://blog.csdn.net/LoseInVain/article/details/102698703
 
-[25]. 
+[25]. He, Kaiming, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. "Identity mappings in deep residual networks." In *European conference on computer vision*, pp. 630-645. Springer, Cham, 2016.
+
+[26]. https://github.com/CalciferZh/SMPL
+
+[27]. 
 
 
 
@@ -254,6 +318,10 @@ SMPL模型用以参数化人体模型的基本属性，比如动作姿态，形�
 [3d_mesh]: ./imgs/3d_mesh.png
 [smpl_joints]: ./imgs/smpl_joints.png
 [shape_pose]: ./imgs/shape_pose.png
+
+[hmr_1]: ./imgs/hmr_1.png
+[hmr_iteration]: ./imgs/hmr_iteration.png
+[coco_pose]: ./imgs/coco_pose.png
 
 
 
