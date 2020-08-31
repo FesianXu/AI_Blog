@@ -13,9 +13,15 @@
 人体动作捕捉技术（简称人体动捕技术）是影视游戏行业中常用的技术，其可以实现精确的人体姿态，运动捕捉，但是用于此的设备昂贵，很难在日常生活中广泛应用。视频人体动作捕捉技术指的是输入视频片段，捕捉其中场景中的人体运动信息，基于这种技术，可以从互联网中海量的视频中提取其中的人体运动姿态数据，具有很广阔的应用场景。本文打算介绍视频人体动作捕捉相关的一些工作并且笔者的一些个人看法 。 **如有谬误，请联系指出，转载请联系作者，并且注明出处。谢谢。**
 
 $\nabla$ 联系方式：
+
 **e-mail**: [FesianXu@gmail.com](mailto:FesianXu@gmail.com)
+
 **QQ**: 973926198
+
 github: https://github.com/FesianXu
+
+知乎专栏：[计算机视觉/计算机图形理论与应用](https://zhuanlan.zhihu.com/c_1265262560611299328)
+
 
 ---
 
@@ -216,27 +222,192 @@ for i in range(n_iter):
 
 通过这个方法，我们可以回归出以上提到的SMPL参数，通过SMPL模型[26]可以生成数字虚拟人体模型，我们用$M(\theta,\beta)$表示该模型，通过弱透视相机（已经回归出外参数了），可以渲染得到二维平面投影，我们把这个过程表示为$M(\theta,\beta) \stackrel{\mathbf{R}}{\rightarrow} P$。
 
-注意到这里的$M(\theta,\beta) \in \mathbb{R}^{6890 \times 3}$，通过投影之后得到$P \in \mathbb{R}^{6890 \times 2}$。
+注意到这里的$M(\theta,\beta) \in \mathbb{R}^{6890 \times 3}$是人体模型的mesh，通过投影之后得到$P \in \mathbb{R}^{6890 \times 2}$。
+
+为了实现后续谈到的训练，我们通常需要求得人体的控制点，也可以称之为关节点，具体求解过程见博文[10]。我们可以通过mesh求得其对于的关节点，如Fig 3.6所示，我们用$X(\theta,\beta) \in \mathbb{R}^{24 \times 2}$表示由 $M(\theta,\beta)$ 解算得到的人体的24个关节点。
+
+![joint][joint]
+
+<div align='center'>
+ <b>
+  Fig 3.6 通过mesh求得人体的关节点。
+ </b>
+</div>
+
+为了实现训练，还需要进行3D关节点到2D关节点的投影，这个弱透视相机的投影过程可以表示为：
+$$
+\hat{\mathbf{x}} = s\Pi(RX(\theta, \beta))+t
+\tag{3.1}
+$$
+其中的$\Pi(\cdot)$是正交投影函数，见[27]。
+
+
 
 ## 训练阶段
 
-我们在本节考虑如何去训练这个模型。我们的训练数据一般有两种类型的标注，一是2D的标注，2D标注可以由人工打标注而成，如Fig 3.6所示，这种数据的获取成本通常远比第二种方式的低很多；二是3D的标注，3D标注通常需要用专用设备，比如3D扫描仪进行扫描后标注，这种数据通常获取昂贵，不容易得到。
+我们在本节考虑如何去训练这个模型。我们的训练数据一般有两种类型的标注，一是2D的标注，2D标注可以由人工打标注而成，如Fig 3.7所示，这种数据的获取成本通常远比第二种方式的低很多；二是3D的标注，3D标注通常需要用专用设备，比如3D扫描仪进行扫描后标注，这种数据通常获取昂贵，不容易得到。
 
 ![coco_pose][coco_pose]
 
 <div align='center'>
  <b>
-  Fig 3.6 COCO数据中的2D关节点手工标注示例。
+  Fig 3.7 COCO数据中的2D关节点手工标注示例。
  </b>
 </div>
 
-考虑到训练数据标注的多样性并且以2D标注为主，一般考虑用重投影(reprojection)得到的2D关节点作为预测进行损失计算。
+考虑到训练数据标注的多样性并且以2D标注为主，一般考虑用重投影(reprojection)得到的2D关节点作为预测进行损失计算。整个流程框图变成如Fig 3.8所示。
 
+![reproj_framework][reproj_framework]
+
+<div align='center'>
+ <b>
+  Fig 3.8 引入了重投影损失的框架。
+ </b>
+</div>
+
+用$\mathbb{x}_i \in \mathbb{R}^{2}$表示第$i$个真实标注的关节点的坐标，而$v_{i} \in \{0,1\}^{24}$表示这24个关节点在图中的可见性，被遮挡的部分设为0，可见部分设为1。那么，我们有重投影损失：
+$$
+\mathcal{L}_{\mathrm{reproj}} = \sum_i ||v_i (\mathbf{x}_i-\hat{\mathbf{x}}_i)||_1
+\tag{3.2}
+$$
+考虑到某些数据集可能提供有3D标注，比如Human3.6m[28]。因此还可以引入可选的3D关节点监督损失，如：
+$$
+\mathcal{L}_{\mathrm{3D \ joints}} = ||\mathbf{X}_i-\hat{\mathbf{X}}_i||^2_2
+\tag{3.3}
+$$
+其中$\mathbf{X}_i \in \mathbb{R}^{24 \times 3}$和$\hat{\mathbf{X}}_i \in \mathbb{R}^{24 \times 3}$分别是真实和预测的3D关节点。
+
+同时，考虑到我们需要预测的是SMPL模型参数$\hat{\theta},\hat{\beta}$，因此有必要对该参数进行直接的监督，当3D MoCap数据可得的情况下，可以利用MoSh算法[29,30]求得对应的SMPL模型参数，记为$[\beta, \theta]$。于是我们有：
+$$
+\mathcal{L}_{\mathrm{smpl}} = ||[\beta_i, \theta_i] - [\hat{\beta}_i, \hat{\theta}_i]||^2_2
+\tag{3.4}
+$$
+因此以整个3D关节点数据作为监督数据的损失为：
+$$
+\mathcal{L}_{\mathrm{3D}} = \mathcal{L}_{\mathrm{3D \ joints}} + \mathcal{L}_{\mathrm{smpl}}
+\tag{3.5}
+$$
+
+## 引入人体运动先验知识
+
+我们在[10]中已经讨论过了2D到3D变换过程中固有的投影歧义性，如图Fig 3.9所示，简单来说就是
+
+>  2D关节点到3D空间点的映射是具有歧义性的（ambiguous），因此对于同样一个2D关节点，在空间上就有可能有多种映射的可能性
+
+![2d3d_am][2d3d_am]
+
+<div align='center'>
+ <b>
+  Fig 3.9 如果不对3D模型进行约束，那么单纯的单视角图像将会存在2D到3D投影的歧义性，如最后一张图的(a)是原始的2D节点，其到3D的投影有非常多的可能性。这里的歧义性可以由一定数量的多视角图像消除，或者通过对人体姿态的先验进行降低。
+ </b>
+</div>
+
+而如果想要在单目RGB图片中减少之中歧义性，就必须引入关于人体动作的先验，该先验描述了人体的极限动作范围，有些动作或者姿态，人体是不可能做到的（举个例子就是手臂自旋转180度，显然正常人类不可能做到），可以根据这个先验，排除掉一些模型预测出来的SMPL模型参数。同时，之前谈到过的某端肢体，比如双臂双腿的自旋转自由度的丢失问题，也可以通过该方式，进行一定的缓解。
+
+为了引入这种先验知识，有多种方式，见[10]。常用的方法可以考虑通过建立大规模的真实人体3D数据集，这个数据集需要进行标准的参数化成数字人体模型，比如SMPL模型。然后通过对抗学习进行人体姿态正则的引入。因此在引入了对抗之后，整个网络的框图如Fig 3.10所示。
+
+![final_framework][final_framework]
+
+<div align='center'>
+ <b>
+  Fig 3.10 在HMR模型中，作者通过在大规模的真实人体mesh数据上进行对抗学习，从而引入了人体姿态正则。
+ </b>
+</div>
+注意到这里的判别器其实需要同时判断SMPL模型参数$[\beta,\theta]$是否是属于真实人体，为了更好地对每个关节点进行判别，需要对所有关节点分别设置一个判别器，并且考虑到全身的动作，同时也需要对全身的姿态进行判别，别忘了还需要对身体的形状参数$\beta$进行判别，因此一共有$K+2$个判别器，其中关节点数量$K=24$。每个判别器$D_i$输出的范围在$[0,1]$，表示了输入参数来自于真实数据的概率。
+
+如果用$E$表示图片特征提取器，$I$表示图片输入，那么有对抗损失的数学表达形式：
+$$
+\begin{aligned}
+\min_E \mathcal{L}_{adv}(E) &= \sum_i \mathbb{E}_{\Theta \sim P_E} [(D_i(E(I))-1)^2] \\ 
+\min_{D_i} \mathcal{L}(D_i) &= \mathbb{E}_{\Theta \sim P_{\mathrm{data}}}[(D_i(\Theta)-1)^2]+\mathbb{E}_{\Theta \sim P_E} [D_i(E(I))^2]
+\end{aligned}
+\tag{3.6}
+$$
+进而通过对抗损失，将人体运动先验引入了到了模型中。
 
 
 ## 考虑到时序信息
 
+之前讨论的都是基于单帧的单目RGB图片进行处理的，而我们实际上需要考虑整段视频的处理。当然，简单地将视频分解为若干帧分别处理也能一定程度上解决问题，但是如果考虑到视频天然地一些特点：
 
+1. 具有语义上的连续性
+2. 具有动作语义
+
+根据这些特点，我们可以引入更多的先验，从而规避由于单目RGB图片天然限制导致的一些歧义性。最典型的就是自遮挡导致的单帧估计误差，如Fig 3.11所示，我们注意到第三张图的左手被遮挡掉了，如果只考虑单帧估计，那么显然左手部分由于信息损失会出现歧义性，会出现很多奇怪的动作。然而如果考虑到视频上下文，我们可以对左手的大致位置进行估计，因而提高了鲁棒性。
+
+![human_dynamic][human_dynamic]
+
+<div align='center'>
+ <b>
+  Fig 3.11 考虑到视频上下文的动作语义连续性，可以对某些帧的自遮挡部分进行修正。
+ </b>
+</div>
+
+考虑到视频的特点，从而引入时序上下文的工作有很多，比如[20, 31]。我们以[20]中提到的VIBE网络为例子，如Fig 3.12所示，其实我们发现和之前谈到的HMR模型差别不是特别大，只不过是在编码层引入了时序建模模块GRU网络[32]作为整个生成器（generator），其他的包括SMPL模型参数的估计和渲染相机的弱透视假设都是一致的。
+
+![vibe_archi][vibe_archi]
+
+<div align='center'>
+ <b>
+  Fig 3.12 VIBE网络的网络框图。
+ </b>
+</div>
+
+假设输入帧为$\mathbf{I} = \{I_1,\cdots,I_T\}$，那么用$f(\cdot)$表示CNN图片特征提取网络，比如ResNet-50，有$f_i \in \mathbb{R}^{2048}$，用$g(\cdot)$表示GRU网络，那么我们有每帧的图片特征$\mathbf{f} = \{f(I_1),\cdots,f(I_T)\}$，经过了GRU网络后，我们有考虑到了时序上下文的特征，$\mathbf{g} = \{g(f_1),\cdots,g(f_T)\}$。考虑到人体的形状在视频中不应该出现明显的变化，因此我们对SMPL参数的损失函数，从式子(3.4)修改成式子(3.7)，意味着所有帧的人体形状都共用一个$\beta$。
+$$
+\mathcal{L}_{\mathrm{smpl}} = ||\beta-\hat{\beta}||_2+\sum_{t=1}^T ||\theta_t - \hat{\theta}_t||_2
+\tag{3.7}
+$$
+当然，我们还需要修改判别器，使之可以考虑到时序上下文的语义信息，如Fig 3.13所示。这个扩展并不复杂，考虑到生成器输出的SMPL参数$\hat{\Theta} = \{\beta, (\hat{\theta}_1,\cdots,\hat{\theta}_T)\}$，为了对判别器的时序建模，我们在判别器中引入了GRU网络，用$f_M$表示。那么，每个隐层的输出为$h_i = f_m(\hat{\Theta}_i)$。为了将隐层输出序列$[h_i,\cdots,h_T]$聚合成一个单一的向量以便于判别，可以采用自注意力机制，学习出加权因子$[\alpha_1,\cdots,\alpha_T]$，有：
+$$
+\begin{aligned}
+\phi_i &= \phi(h_i) \\
+\alpha_i &= \dfrac{\exp(\phi_i)}{\sum_{t=1}^N \exp(\phi_t)} \\
+r &= \sum_{i=1}^N \alpha_i h_i
+\end{aligned}
+\tag{3.8}
+$$
+其中$\phi(\cdot)$是全连接网络。
+
+![motion_discriminator][motion_discriminator]
+
+<div align='center'>
+ <b>
+  Fig 3.13 考虑到了时序上下文的判别器。
+ </b>
+</div>
+
+而整个对抗损失表示如下：
+$$
+\begin{aligned}
+\mathcal{L}_{\mathrm{adv}} &= \mathbb{E}_{\Theta \sim p_G} [(\mathcal{D}_M(\hat{\Theta})-1)^2] \\
+\mathcal{L}_{\mathcal{D}_M} &= \mathbb{E}_{\Theta \sim p_R} [(\mathcal{D}_M(\Theta)-1)^2]+\mathbb{E}_{\Theta \sim p_G} [\mathcal{D}_M(\hat{\Theta})^2]
+\end{aligned}
+\tag{3.9}
+$$
+
+
+# 基于单目视频的优化
+
+单目RGB视频的限制意味着人体相对于相机的深度信息是不准确的，只能根据有限的场景信息去推断大致的深度信息。其中最为直接的是人体包围框的大小变化，我们知道在透视中，有着“远小近大”的现象。但是，如Fig 4.1所示，人体姿态会严重影响到人体包围框的大小尺度，因此如式子(4.1)所示，深度并不是人体包围框大小的线性函数。
+$$
+d = g(\mathrm{scale}, \mathrm{pose},\cdots)
+\tag{4.1}
+$$
+![depth_noise][depth_noise]
+
+<div align='center'>
+ <b>
+  Fig 4.1 人体包围框大小会受到姿态的严重影响。
+ </b>
+</div>
+
+在专利 《基于视频的姿态数据捕捉方法和系统》(专利号：CN 109145788 A  )中，作者提出了一种基于多线索去推理人体相对于相机的深度的方式。考虑到人体每个肢干的大小是不变的，我们可以把人体包围框的粒度缩小至人体肢干的包围框，或者更进一步，人体肢干的长度。有式子(4.2)
+$$
+d = f \dfrac{\sqrt{\sum_i ||P^i_{[xy]}-\bar{P}_{[xy]}||^2}}{\sqrt{\sum_i ||K^i -\bar{K}||^2}}
+\tag{4.2}
+$$
+其中$f$是焦距，可以简单设为参数，不影响整体比例；$P^i_{[xy]}$是
 
 
 
@@ -296,7 +467,17 @@ for i in range(n_iter):
 
 [26]. https://github.com/CalciferZh/SMPL
 
-[27]. 
+[27]. https://blog.csdn.net/LoseInVain/article/details/102698703
+
+[28]. http://vision.imar.ro/human3.6m/description.php
+
+[29].  M. Loper, N. Mahmood, and M. J. Black. MoSh: Motion and shape capture from sparse markers. ACM Transactions on Graphics (TOG) - Proceedings of ACM SIGGRAPH Asia, 33(6):220:1–220:13, 2014  
+
+[30].  G. Varol, J. Romero, X. Martin, N. Mahmood, M. J. Black, I. Laptev, and C. Schmid. Learning from Synthetic Humans. In CVPR, 2017  
+
+[31].  Kanazawa, A., Zhang, J. Y., Felsen, P., & Malik, J. (2019). Learning 3d human dynamics from video. In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition* (pp. 5614-5623).
+
+[32].  Cho, K., Van Merriënboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H., & Bengio, Y. (2014). Learning phrase representations using RNN encoder-decoder for statistical machine translation. *arXiv preprint arXiv:1406.1078*.
 
 
 
@@ -322,6 +503,15 @@ for i in range(n_iter):
 [hmr_1]: ./imgs/hmr_1.png
 [hmr_iteration]: ./imgs/hmr_iteration.png
 [coco_pose]: ./imgs/coco_pose.png
+[joint]: ./imgs/joint.png
+[reproj_framework]: ./imgs/reproj_framework.png
+[2d3d_am]: ./imgs/2d3d_am.jpg
+[final_framework]: ./imgs/final_framework.png
+
+[human_dynamic]: ./imgs/human_dynamic.png
+[vibe_archi]: ./imgs/vibe_archi.png
+[motion_discriminator]: ./imgs/motion_discriminator.png
+[depth_noise]: ./imgs/depth_noise.png
 
 
 
