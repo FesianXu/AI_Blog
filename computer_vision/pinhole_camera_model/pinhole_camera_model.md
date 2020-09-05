@@ -16,7 +16,9 @@
 
 # 前言
 
-在相机校准中，我们经常会提到**内参数**，**外参数**，这些参数决定了一个相机的成像的效果，是后续一系列计算机视觉问题的基础中的基础，然而因为较为底层的原因，现在却比较少人关心它，笔者最近在学习底层的计算机视觉理论，感觉有所裨益，希望能在此进行笔记，作为备忘，如果能对读者有所帮助，则是更好不过了。**如有谬误，请联系指正。转载请注明出处。**
+在相机成像过程中，我们经常会提到相机的**内参数**，**外参数**，这些参数决定了一个相机的成像的效果，是后续一系列计算机视觉问题的基础中的基础，然而因为较为底层的原因，现在却比较少人关心它，笔者最近在学习一些底层的计算机视觉成像理论，感觉有所裨益，希望能在此进行笔记，作为备忘，如果能对读者有所帮助，则是更好不过了。**如有谬误，请联系指正。转载请注明出处。**
+
+注意到本文全文采用齐次坐标系的表达方式，具体见[5]。
 
  $\nabla$ 联系方式：
 **e-mail**: [FesianXu@gmail.com](mailto:FesianXu@gmail.com)
@@ -27,7 +29,7 @@ github: https://github.com/FesianXu
 
 
 
-为了简单地解释一个相机为什么能够成像，我们通常会引入相机的针孔模型(pinhole model)。如Fig 1.1所示，在针孔模型中，相机呈现的都是倒像，这点其实很好理解，因为光线都是直线传播的，因此实体(entity)在相机中的像必然是倒过来的。这里，为了让光只能通过一束（因为只有一束才能确保实体到像的一对一关系，然而实际中不可能做到理想的情况。），我们通常假设这个针孔是无限小的，然而因为无限小的针孔不能透光，为了使得成像有着充足的光线，针孔又必须足够的大，这俩要求显然是个矛盾，因此一般我们需要在针孔处安置透镜，而透镜的引入，包括透镜的厚度，透光度等等不理想的因素，使得成像分析变得复杂起来，但是我们这里还是按照针孔模型的结构去理解，以简化分析。（透镜这里的作用是为了更好的聚集光线。）
+为了简单地解释一个相机为什么能够成像，我们通常会引入相机的针孔模型(pinhole model)。如Fig 1.1所示，在针孔模型中，相机呈现的都是倒像，这点其实很好理解，因为光线都是直线传播的，因此物理世界的实体(entity)在相机中的像必然是倒过来的。这里，为了让光只能通过一束（因为只有一束才能确保实体到像的一对一关系，然而实际中不可能做到理想的情况。），我们通常假设这个针孔是无限小的，然而因为无限小的针孔不能透光，为了使得成像有着充足的光线，针孔又必须足够的大，这俩要求显然是个矛盾，因此一般我们需要在针孔处安置透镜，而透镜的引入，包括透镜的厚度，透光度等等不理想的因素，使得成像分析变得复杂起来，但是我们这里还是按照针孔模型的结构去理解，以简化分析。（透镜这里的作用是为了更好的聚集光线。）
 
 ![image_pin][image_pin]
 
@@ -37,7 +39,7 @@ github: https://github.com/FesianXu
     </b>
 </div>
 
-我们需要知道的是，理想的相机模型是不需要透镜的，因为没有透镜的引入，因此成像没有因透镜产生的几何变形和模糊。在这个模型中，我们其实是在描述从**实体的3D坐标到成像平面的2D坐标之间的映射关系**。如Fig 1.2所示，现实中的实体点$X$坐标为$(x,y,z)$，其光线通过焦点$C$聚集在成像平面上，但是这个像是倒像，不方便分析，为了方便，我们通常假设和倒像的成像平面对称的一端也有个成像平面，这个平面成像是正面的，其特性和真实的成像平面一模一样，除了呈现的是正像之外，因此我们正式地将其称为**成像平面(image plane)**。其真实实体的映射点坐标为$x = (u,v)$。
+我们需要知道的是，理想的相机模型是不需要透镜的，因为没有透镜的引入，因此成像没有因透镜产生的几何变形和模糊。在这个模型中，我们其实是在描述从**实体的3D坐标到成像平面的2D坐标之间的映射关系** $\mathbf{X} \rightarrow \mathbf{x}, \mathbf{X} \in \mathbb{R}^3, \mathbf{x} \in \mathbb{R}^2$ (注：此处是维度表达是非齐次坐标)。如Fig 1.2所示，现实中的实体点$X$坐标为$(x,y,z)$，其光线通过焦点$C$聚集在成像平面上，但是这个像是倒像，不方便分析，为了方便，我们通常假设和倒像的成像平面对称的一端也有个成像平面，这个平面成像是正面的，其特性和真实的成像平面一模一样，除了呈现的是正像之外，因此我们正式地将其称为**成像平面(image plane)**。其真实实体的映射点坐标为$x = (u,v)$。
 
 ![imageplane][imageplane]
 
@@ -57,11 +59,12 @@ github: https://github.com/FesianXu
 6. 帧(frame): 这里提到的帧和我们通常视频处理里面的帧不太一样，这里提到的帧指的是一种度量，用于衡量一个特定的坐标系系统。
 7. 世界坐标系(world frame, world coordinate system)：一个固定的坐标系，用于表示现实实体的坐标（比如点线面等等）。
 8. 相机坐标系(camera frame, camera coordinate system)：将相机的焦点作为其原点，光轴作为其Z轴的坐标系。
-9. 外参数(extrinsic parameters): 外参数描述了如何将实体的3D点（以世界坐标系描述）映射到以相机坐标系描述的3D点上，显然，这个是坐标系的平移和旋转过程。
-10. 内参数(intrinsic parameters)：内参数描述了如何将已经是用相机坐标系描述的3D点投射到成像平面上。
-11. 视网膜平面（image, retina plane）：图像在这个平面上成像，注意到，图像平面用相机坐标系度量，其单位是mm，毫米，属于物理单位。
-12. 图像帧(image frame)：这个帧和我们通常理解的帧一致，其用像素(pixel)去描述图像平面，而不是mm了，属于逻辑单位。（比如一个像素对应多少mm的距离是不同的。）
-13. 光心(principal point)： 指的是光轴和成像平面的交点。
+9. 图像坐标系(image frame, image coordinate system)：描述二维图像的像素位置，通常以图像的左上角或者图像的中心视为坐标原点。
+10. 外参数(extrinsic parameters): 外参数描述了如何将实体的3D点（以世界坐标系描述）映射到以相机坐标系描述的3D点上，显然，这个是坐标系的平移和旋转过程。
+11. 内参数(intrinsic parameters)：内参数描述了如何将已经是用相机坐标系描述的3D点投射到成像平面上。
+12. 视网膜平面（image, retina plane）：图像在这个平面上成像，注意到，图像平面用相机坐标系度量，其单位是mm，毫米，属于物理单位。
+13. 图像帧(image frame)：这个帧和我们通常理解的帧一致，其用像素(pixel)去描述图像平面，而不是mm了，属于逻辑单位。（比如一个像素对应多少mm的距离是不同的。）
+14. 光心(principal point)： 指的是光轴和成像平面的交点。
 
 
 
@@ -79,7 +82,7 @@ github: https://github.com/FesianXu
 
 # 坐标系的改变
 
-为了将一个在世界坐标系中表示的点，以相机坐标系的形式进行表达，我们需要进行坐标系的平移和旋转变化。比如Fig 2.1所示，我们需要通过平移和旋转将$(X_C, Y_W, Z_W)$转换到$(X_C,Y_C,Z_C)$，容易知道，在不同坐标系中，对于同一个实体点$P$来说，其表达形式都不同。我们接下来考虑怎么进行这个坐标系转换。
+为了将一个在世界坐标系中表示的点，以相机坐标系的形式进行表达，我们需要进行坐标系的平移和旋转变化（即是欧几里德变换[4]）。比如Fig 2.1所示，我们需要通过平移和旋转将$\mathbf{X}_{W}^{\mathrm{T}} = (X_W, Y_W, Z_W, 1)$转换到$\mathbf{X}_{C}^{\mathrm{T}} = (X_C,Y_C,Z_C,1)$，容易知道，在不同坐标系中，对于同一个实体点$P$来说，其表达形式都不同。我们接下来考虑怎么进行这个坐标系转换。
 
 ![TandR][TandR]
 
@@ -91,12 +94,14 @@ github: https://github.com/FesianXu
 
 通常来说，这个过程可以简单表示为，平移向量和旋转矩阵的操作，如：
 $$
-\hat{\mathbf{X}}_C = \mathbf{R}(\mathbf{X}_W-C) 
+\mathbf{X}_C = \mathbf{R}(\mathbf{X}_W-C) 
 \tag{2.1}
 $$
-其中，$\mathbf{X}_W = (X_W,Y_W,Z_W)$是世界坐标系坐标，$\hat{\mathbf{X}}_C = (X_C, Y_C, Z_C)$是相机坐标系坐标，$\mathbf{R} \in \mathbb{R}^{4 \times 4}$是旋转矩阵（注意这里是齐次坐标系的表达方法），$C = (X_0, Y_0, Z_0)$是用世界坐标系描述的焦点。
+其中，$\mathbf{X}_{W} = (X_W,Y_W,Z_W,1)^{\mathrm{T}}$是世界坐标系坐标，$\mathbf{X}_C = (X_C, Y_C, Z_C,1)^{\mathrm{T}}$是相机坐标系坐标，$\mathbf{R} \in \mathbb{R}^{4 \times 4}$是旋转矩阵（注意这里是齐次坐标系的表达方法，见[5]），$C = (X_0, Y_0, Z_0,1)^{\mathrm{T}}$是用世界坐标系描述的焦点。通过式子(2.1)我们实现了世界坐标系到相机坐标系的变换$\mathbf{X}_{W} \rightarrow \mathbf{X}_{C}$，不过注意到这里还停留在三维点之间的欧几里德变换。
 
-我们考虑到在中心投影中，如Fig 2.2中，我们根据相似三角形的规律有，其中以相机坐标系描述的点$\hat{\mathbf{X}}_C$投影到成像平面上有$\mathbf{X}_C = (x_c, y_c)^{\mathrm{T}}$
+在以上的讨论中，我们把坐标从世界坐标系转换成了相机坐标系，但是我们通常是需要用图像坐标系去表示图片中的某个像素点的，这里涉及到了三维点到二维点的映射问题，因此我们还需要进行 **相机坐标系到图像坐标系的转换**，即是$\mathbf{X}_{C} \rightarrow \mathbf{x}$。
+
+我们考虑到在中心投影中，如Fig 2.2中，我们根据相似三角形的规律有，其中以相机坐标系描述的点$\mathbf{X}_C$投影到成像平面上有$\mathbf{x} = (x_c, y_c)^{\mathrm{T}}$
 $$
 \begin{aligned}
 x_c &= \frac{f X_c}{Z_c} \\
@@ -117,15 +122,15 @@ $$
 \mathbf{x}_C =  
 \left[
  \begin{matrix}
-   f & 0 & 0 \\
-   0 & f & 0 \\
-   0 & 0 & 1 
+   f & 0 & 0 & 0\\
+   0 & f & 0 & 0\\
+   0 & 0 & 1 & 0
   \end{matrix} 
 \right]
-\hat{\mathbf{X}}_{C}
+\mathbf{X}_{C}, \mathbf{X}_C \in \mathbb{R}^{4 \times 1}
 \tag{2.3}
 $$
-可知此时有: $\mathbf{x}_c = (f X_C, f Y_C, Z_C)^{\mathrm{T}}$，其是用齐次坐标系表达的，等价于非齐次形式的$\mathbf{x}_c = (fX_C/Z_c, f Y_C/Z_c)^{\mathrm{T}}$。
+可知此时有: $\mathbf{x}_C = (f X_C, f Y_C, Z_C)^{\mathrm{T}}$，其是用齐次坐标系表达的，等价于非齐次形式的$\mathbf{x}_C = (fX_C/Z_c, f Y_C/Z_c)^{\mathrm{T}}$。
 
 考虑到公式(2.1)和(2.3)，我们能够把一个3D点映射成2D点：
 $$
@@ -133,41 +138,25 @@ $$
 \mathbf{x}_C &=
 \left[
  \begin{matrix}
-   f & 0 & 0 \\
-   0 & f & 0 \\
-   0 & 0 & 1 
+   f & 0 & 0 & 0\\
+   0 & f & 0 & 0\\
+   0 & 0 & 1 & 0
   \end{matrix} 
 \right]
-\hat{\mathbf{X}}_C = 
+\mathbf{X}_C = 
 \left[
  \begin{matrix}
-   f & 0 & 0 \\
-   0 & f & 0 \\
-   0 & 0 & 1 
+   f & 0 & 0 & 0\\
+   0 & f & 0 & 0\\
+   0 & 0 & 1 & 0
   \end{matrix} 
 \right]
 \mathbf{R} [\mathbf{I} | -\mathbf{C}]
-\left(
-\begin{matrix}
-{\mathbf{X}}_W \\
-1
-\end{matrix}
-\right) \\
-&= 
-\left[
- \begin{matrix}
-   f & 0 & 0 \\
-   0 & f & 0 \\
-   0 & 0 & 1 
-  \end{matrix} 
-\right]
-\mathbf{R} [\mathbf{I} | -\mathbf{C}] \hat{\mathbf{X}}_W
+{\mathbf{X}}_W
 \end{aligned}
 \tag{2.4}
 $$
-其中$\hat{\mathbf{X}}_W$是${\mathbf{X}}_W$的齐次表达。
-
-这里的$\mathbf{R} [\mathbf{I} | -\mathbf{C}]$称之为外参数(extrinsic parameters)，这些参数描述了如何将世界坐标系的实体3D点转换到以相机坐标系描述的3D点。
+这里的$\mathbf{R} [\mathbf{I} | -\mathbf{C}]$称之为外参数(extrinsic parameters)，这些参数描述了如何将世界坐标系的实体3D点转换到以相机坐标系描述的3D点。而前面乘上的形状为$3 \times 4$的矩阵是投影矩阵，负责从相机坐标系的三维点映射到二维上，当然这个形式并不完整，我们接下来会继续探讨这一部分，我们要继续考虑相机成像过程中的工艺导致的问题修正。
 
 那么总结来说，其实对于坐标系的平移和旋转，我们可以用下面的几副图来表示：
 
@@ -197,7 +186,7 @@ $$
 
 # 考虑更多因素
 
-注意到通过上面的讨论，我们转换得到的$\mathbf{x}_c$的单位仍然是物理单位mm，如果我们需要用像素去度量（实际上也是用像素度量的），我们仍需要进行其他处理。（内参数的协助） $\mathbf{x}_c$在这里是以光心作为其原点的，而传统的表示中，我们一般以左上角的作为原点进行描述。因为一些制造工艺上的不精确性，我们的成像传感器CCD通常不是完美的矩形网格，可能会有变形。比如偏斜(skewness)用于描述CCD单元的变形程度，见Fig 2.3。
+注意到通过上面的讨论，我们转换得到的二维像点$\mathbf{x}_C$的单位仍然是物理单位mm，如果我们需要用像素去度量（实际上也是用像素度量的），我们仍需要进行其他处理。（内参数的协助） $\mathbf{x}_C$在这里是以光心作为其原点的，而传统的表示中，我们一般以左上角的作为原点进行描述。因为一些制造工艺上的不精确性，我们的成像传感器CCD通常不是完美的矩形网格，可能会有变形。比如偏斜(skewness)用于描述CCD单元的变形程度，见Fig 2.3。
 
 ![skewness][skewness]
 
@@ -250,45 +239,45 @@ m_x & 0 & x_0 \\
 \right]
 \left[
 \begin{matrix}
-f & 0 & 0 \\
-0 & f & 0 \\
-0 & 0 & 1
+f & 0 & 0 & 0\\
+0 & f & 0 & 0\\
+0 & 0 & 1 & 0
 \end{matrix}
 \right]
-\mathbf{R}[\mathbf{I}|-\mathbf{C}] \hat{\mathbf{X}}_W \\
+\mathbf{R}[\mathbf{I}|-\mathbf{C}] \mathbf{X}_W \\
 &= 
 \left[
 \begin{matrix}
-m_x f & -m_x f \cot(\theta) & x_0 \\
-0 & \dfrac{m_y f}{\sin(\theta)} & y_0 \\
-0 & 0 & 1
+m_x f & -m_x f \cot(\theta) & x_0 & 0\\
+0 & \dfrac{m_y f}{\sin(\theta)} & y_0 & 0\\
+0 & 0 & 1 & 0
 \end{matrix}
 \right] 
-\mathbf{R}[\mathbf{I}|-\mathbf{C}] \hat{\mathbf{X}}_W \\
+\mathbf{R}[\mathbf{I}|-\mathbf{C}] \mathbf{X}_W \\
 &= 
 \left[
 \begin{matrix}
-\alpha_x & s & x_0 \\
-0 & \alpha_y & y_0 \\
-0 & 0 & 1
+\alpha_x & s & x_0 & 0\\
+0 & \alpha_y & y_0 & 0\\
+0 & 0 & 1 & 0
 \end{matrix}
 \right] 
-\mathbf{R}[\mathbf{I}|-\mathbf{C}] \hat{\mathbf{X}}_W \\
+\mathbf{R}[\mathbf{I}|-\mathbf{C}] \mathbf{X}_W \\
 &= 
-\mathbf{K} \mathbf{R}[\mathbf{I}|-\mathbf{C}] \hat{\mathbf{X}}_W \\
+\mathbf{K} \mathbf{R}[\mathbf{I}|-\mathbf{C}] \mathbf{X}_W \\
 &= 
-\mathbf{P} \hat{\mathbf{X}}_W \\
+\mathbf{P} \mathbf{X}_W \\
 \end{aligned}
 \tag{2.6}
 $$
 
-在这个公式(2.6)中，我们发现有很多陌生的符号，其中我们将：
+其中有$\mathbf{X}_W \in \mathbb{R}^{4 \times 1}, \mathbf{K} \in \mathbb{R}^{3 \times 4}, \mathbf{P} \in \mathbb{R}^{3 \times 4}$。在这个公式(2.6)中，我们发现有很多陌生的符号，其中我们将：
 $$
 \left[
 \begin{matrix}
-m_x & 0 & x_0 \\
-0 & m_y & y_0 \\
-0 & 0 & 1
+m_x & 0 & x_0 & 0\\
+0 & m_y & y_0 & 0\\
+0 & 0 & 1 & 0
 \end{matrix}
 \right] 和
 \left[
@@ -300,9 +289,9 @@ m_x & 0 & x_0 \\
 \right] 和
 \left[
 \begin{matrix}
-f & 0 & 0 \\
-0 & f & 0 \\
-0 & 0 & 1
+f & 0 & 0 & 0\\
+0 & f & 0 & 0\\
+0 & 0 & 1 & 0
 \end{matrix}
 \right]
 $$
@@ -333,6 +322,12 @@ $$
 [2].  Forsyth D , JeanPonce, 福赛斯, et al. Computer vision : a modern approach[M]. 电子工业出版社, 2012. 
 
 [3]. 电子科技大学自动化学院 杨路 老师 计算机视觉课程课件。
+
+[4]. https://blog.csdn.net/LoseInVain/article/details/104533575
+
+[5]. https://blog.csdn.net/LoseInVain/article/details/102756630
+
+
 
 
 
