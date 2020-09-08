@@ -1,6 +1,7 @@
 <div align='center'>
-    [笔记] 薄板样条插值(Thin Plate Spline)
+    薄板样条插值(Thin Plate Spline)
 </div>
+
 
 <div align='right'>
     FesianXu 2020/09/08 at UESTC
@@ -11,6 +12,7 @@
 本文是笔者阅读[1]过程中，遇到了关于Thin Plate Spline[5]相关的知识，因而查找若干资料学习后得到的一些笔记，本文主要参考[2,3,4]，希望对大家有所帮助。 **如有谬误，请联系指出，转载请联系作者并注明出处**。
 
 $\nabla$ 联系方式：
+
 **e-mail**: [FesianXu@gmail.com](mailto:FesianXu@gmail.com)
 
 **QQ**: 973926198
@@ -70,17 +72,17 @@ $$
 
 其中的$N$为控制点的数量，式子(1.2)很容易理解，是源目标经过形变函数$\Phi$之后和目标之间的距离；而式子(1.3)是曲面扭曲的能量函数，由文献[6]中给出，最小化式子(1.1)的结果，可以推导出形变函数的唯一闭式解结果为：
 $$
-\Phi(p) = \mathbf{M} \cdot p + \sum_{i=1}^{N} \omega_i U(||p-p_i||) 
+\Phi(p) = \mathbf{M} \cdot p + m_0+\sum_{i=1}^{N} \omega_i U(||p-p_i||) 
 \tag{1.4}
 $$
-其中$p$为曲面上的任意一个点，这里用齐次坐标表示，有$p = (x,y,1)^{\mathrm{T}}$，而$\mathbf{M} = (m_1,m_2,m_0)$，而这里的$U(\cdot)$为径向基函数，表示某个曲面上的点的变形会受到所有控制点变形的影响（当然，不同控制点的影响程度不一样），有
+其中$p$为曲面上的任意一个点，有$p = (x,y)^{\mathrm{T}}$，$p_i$是对应域的控制点，而$\mathbf{M} = (m_1,m_2)$，而这里的$U(\cdot)$为径向基函数，表示某个曲面上的点的变形会受到所有控制点变形的影响（当然，不同控制点的影响程度不一样），有
 $$
 U(x) = r^2\log{r}
 \tag{1.5}
 $$
 而$\omega_i$表示对不同径向基的加权。如Fig 1.3所示，如果我们假设每个控制点都对应一个高度，也就是$(x_i,y_i)\rightarrow v_i$，也就是说控制点是三维空间坐标系中的自变量，而其高度是因变量，那么我们可以再继续分析式子(1.4)中的第一项和第二项。
 
-我们发现第一项其实是尝试用一个平面$y = \mathbf{M} \cdot p$去拟合所有的目标控制点，当然这个拟合肯定不够好，因此用第二项尝试在该平面的基础上去弯曲（当然是尽可能小的弯曲），从而达到更好的拟合效果，如Fig 1.3所示。此时有未知参数$\mathbf{M} \in \mathbb{R}^3$，和$\omega_i, i \in [1,N]$，因此一共有$1+2+N$个参数，其中$D = 2$是维度，$N$是控制点数目。
+我们发现第一项其实是尝试用一个平面$y = \mathbf{M} \cdot p+m_0$去拟合所有的目标控制点，当然这个拟合肯定不够好，因此用第二项尝试在该平面的基础上去弯曲（当然是尽可能小的弯曲），从而达到更好的拟合效果，如Fig 1.3所示。此时有未知参数$\mathbf{M} \in \mathbb{R}^2, m_0 \in \mathbb{R}$，和$\omega_i, i \in [1,N]$，因此一共有$1+2+N$个参数，其中$D = 2$是维度，$N$是控制点数目。
 
 ![thinplates][thinplates]
 
@@ -140,21 +142,69 @@ $$
 \mathbf{K} & \mathbf{P} \\
 \mathbf{P}^{\mathrm{T}} & \mathbf{0}
 \end{matrix}
-\right]
+\right] \in \mathbb{R}^{(N+3) \times (N+3)}
 \tag{1.9}
 $$
-那么有：
+那么由式子(1.4)和$\Phi(p_i)=v_i$，有：
 $$
-\mathbf{Y} = \mathbf{L} (\Omega|\mathbf{M})^{\mathrm{T}}
+\mathbf{Y} = \mathbf{L} (\Omega|m_0,m_1,m_2)^{\mathrm{T}}
 \tag{1.10}
 $$
-其中$\Omega = (\omega_1,\cdots,\omega_N)$。
+其中$\Omega = (\omega_1,\cdots,\omega_N)$。其中的后三行引入了一组对参数的约束（虽然我并不知道这组约束的含义，有了解的朋友请在评论区赐教，谢谢）：
+$$
+\begin{aligned}
+\sum_{i=1}^N \omega_i &= 0 \\
+\sum_{i=1}^N x_i\omega_i &= 0 \\
+\sum_{i=1}^N y_i\omega_i &= 0
+\end{aligned}
+\tag{1.11}
+$$
+那么从式子(1.10)我们有：
+$$
+(\Omega|m_0,m_1,m_2)^{\mathrm{T}} = \mathbf{L}^{-1}\mathbf{Y} 
+\tag{1.12}
+$$
+当然也可以通过解线性方程组(1.10)得到参数组$(\Omega|m_0,m_1,m_2)^{\mathrm{T}}$，一旦这个参数组计算得到，那么我们的插值函数$\Phi(p)$也就已知了，只要给定平面上任意一个点，就能通过插值函数将其插值到目标平面上。
+
+# 变形(deformation)
+
+这里介绍TPS的一个主要应用，对图片的控制点进行偏移，以达到通过控制点对图像进行特定形变的目的。如Fig 2.1所示，通过拉拽嘴角的控制点（即是蓝色点），使得周围的像素，比如$A$点移动到了$A^{\prime}$点，此时存在位移$(\Delta x, \Delta y)$，此时我们需要插值这个位移。 当然，对应控制点之间的移动偏移是可以知道的，记为$\Delta \mathbf{S} = \{(\Delta x_1, \Delta y_1),\cdots,(\Delta x_N, \Delta y_N)\}$，我们要根据已知的控制点偏移去插值图片上其他任意像素点的偏移。
+
+不妨我们把这两个位移的分量隔离开来，不考虑两个维度之间的相关性，那么可以将第一章提到的“高度”$v_i$在这里理解成每一个位移的分量，那么我们有两个插值函数需要预测，即是：
+$$
+\begin{aligned}
+\Delta x(p) &= \Phi(p)_{\Delta x} \\
+\Delta y(p) &= \Phi(p)_{\Delta y}
+\end{aligned}
+\tag{2.1}
+$$
+![deformation_face][deformation_face]
+
+<div align='center'>
+    <b>
+        Fig 2.1 通过拉拽嘴角和眼角的控制点，可以实现图像的内容形变。
+    </b>
+</div>
+
+
+
+假如只是选定6个控制点，分别是图片的四个角落，右眼和右侧嘴角，如Fig 2.2所示。
+
+
+
+![herve-smile-points][herve-smile-points]
+
+<div align='center'>
+    <b>
+        Fig 2.2 红色点表示移动之前的控制点，绿色点表示移动后的控制点，我们发现只是移动了右边眼睛和右边嘴角。
+    </b>
+</div>
 
 
 
 
 
-# 变形
+![dxdy][dxdy]
 
 
 
@@ -181,6 +231,10 @@ $$
 [tps]: ./imgs/tps.png
 [thinplates]: ./imgs/thinplates.png
 [diff_lambda]: ./imgs/diff_lambda.png
+
+[deformation_face]: ./imgs/deformation_face.png
+[dxdy]: ./imgs/dxdy.png
+[herve-smile-points]: ./imgs/herve-smile-points.png
 
 
 
