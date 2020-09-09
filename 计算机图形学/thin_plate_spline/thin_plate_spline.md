@@ -62,8 +62,7 @@ $$
 $$
 
 $$
-\mathcal{E}_d = \int \int_{\mathbb{R}^2} \bigg( \bigg( \dfrac{\partial^2\Phi}{\partial \mathrm{x}^2} \bigg)^2
-+ 2
+\mathcal{E}_d = \int \int_{\mathbb{R}^2} \bigg( \bigg( \dfrac{\partial^2\Phi}{\partial \mathrm{x}^2} \bigg)^2 + 2
 \bigg( \dfrac{\partial^2\Phi}{\partial \mathrm{x} \partial \mathrm{y}} \bigg)^2 +
 \bigg( \dfrac{\partial^2\Phi}{\partial \mathrm{y}^2} \bigg)^2
 \bigg)^2 \mathrm{dx}\mathrm{dy}
@@ -188,9 +187,18 @@ $$
 
 
 
-假如只是选定6个控制点，分别是图片的四个角落，右眼和右侧嘴角，如Fig 2.2所示。
-
-
+假如只是选定6个控制点，分别是图片的四个角落，右眼和右侧嘴角，如Fig 2.2所示，其中红色点表示移动之前的控制点，绿色点表示移动后的控制点，我们发现只是移动了右边眼睛和右边嘴角。那么计算出来的插值函数$\Phi$为：
+$$
+\Phi = 
+\left[
+\begin{matrix}
+\Phi(p)_{\Delta x} \\
+\Phi(p)_{\Delta y}
+\end{matrix}
+\right]
+\tag{2.2}
+$$
+其图像如Fig 2.3所示。我们发现在四个角落，因为不存在控制点的位移，因此$\Delta x, \Delta y$的平面没有高度变化，而嘴角向上移动，因此对应嘴角的控制点的曲面上的$\Delta y$有着较高的高度，而对应的$\Delta x$则没有太大的高度变化。相反的，右眼部分则是$\Delta x$有着较为明显的高度变化，而$\Delta y$没有。
 
 ![herve-smile-points][herve-smile-points]
 
@@ -202,13 +210,17 @@ $$
 
 
 
+只要得到了这个$\Delta x, \Delta y$方向的插值函数，给定任意一组控制点的变化，都可以对其他非控制点的像素位置进行插值。
+
 
 
 ![dxdy][dxdy]
 
-
-
-
+<div align='center'>
+    <b>
+        Fig 2.3 △x和△y的插值函数图像，其中的红点表示控制点。
+    </b>
+</div>
 
 
 
