@@ -22,7 +22,7 @@ github: https://github.com/FesianXu
 
 ----
 
-**注意：本文只是基于[1,2]文献的内容阐述思路，细节请读者自行翻阅对应论文细读。**
+**注意：本文只是基于[1,2]文献的内容阐述思路，为了行文简练，去除了某些细节，如有兴趣，请读者自行翻阅对应论文细读。**
 
 $\S$   **本文使用术语纪要**：
 
@@ -80,7 +80,7 @@ $\S$   **本文使用术语纪要**：
 2. 如何提取驱动视频中的运动信息？
 3. 如何将提取到的动作信息添加到静态图中，让静态图变形？
 
-通常来说，表征一个主体的运动信息可以通过密集光流图的方式表达，光流（optical flow）[5] 表示的是某个局部运动的速度和方向，简单地可以理解为在时间很短的两个连续帧的某个局部，相对应像素的变化情况。如Fig 1.4所示，如果计算(a)(b)两帧关于蓝色框内的光流，我们可以得到如同(c)所示的光流图，表征了这个“拔箭”动作的局部运动速度和方向，因此是一个向量场，我们通常可以用$\mathbf{F} \in \mathbb{R}^{H \times W \times 2}$表示，其中的$H \times W$表示的是局部区域的空间尺寸，维度2表示的是二维空间$(\Delta x, \Delta y)$偏移。如果该局部区域的每一个像素都计算光流图，那么得到的光流图就称之为 **密集光流图**（Dense Optical Flow Map），如Fig 1.4 (c)所示。密集光流图中的每一个像素对应的向量方向，提供了从一个动作转移到下一个动作所必要的信息，是图片动画化过程中的必需信息。
+通常来说，表征一个主体的运动信息可以通过密集光流图的方式表达，光流（optical flow）[5] 表示的是某个局部运动的速度和方向，简单地可以理解为在时间很短的两个连续帧的某个局部，相对应像素的变化情况。如Fig 1.4所示，如果计算(a)(b)两帧关于蓝色框内的光流，我们可以得到如同(c)所示的光流图，表征了这个“拔箭”动作的局部运动速度和方向，因此是一个向量场，我们通常可以用$\mathcal{F} \in \mathbb{R}^{H \times W \times 2}$表示，其中的$H \times W$表示的是局部区域的空间尺寸，维度2表示的是二维空间$(\Delta x, \Delta y)$偏移。如果该局部区域的每一个像素都计算光流图，那么得到的光流图就称之为 **密集光流图**（Dense Optical Flow Map），如Fig 1.4 (c)所示。密集光流图中的每一个像素对应的向量方向，提供了从一个动作转移到下一个动作所必要的信息，是图片动画化过程中的必需信息。
 
 ![optical_flow][optical_flow]
 
@@ -202,8 +202,6 @@ $$
 
 知道了稀疏光流图，我们只知道关键点是怎么变化的，但是对关键点周围的像素的变化却一无所知，我们最终期望的是通过稀疏光流图去推理出密集光流图，如Fig 4.1所示。
 
-
-
 ![dense_motion_network][dense_motion_network]
 
 <div align='center'>
@@ -220,7 +218,7 @@ $$
 
 > 每个关键点周围的主体部件是局部刚性的，因此其位移方向和大小与关键点的相同，我们称之为动作零阶分解。
 
-这一点通过Fig 4.2可以得到很好地描述，
+这个假设通过Fig 4.2可以得到很好地描述，我们通过关键点检测模型可以检测出对应的关键点位移，根据假设，那么周围的身体部分，如橘色点虚线框所示，是呈现刚体变换的，也就是说该区域内的所有和主体有关的部分的像素的位移向量，都和该关键点相同。
 
 ![locally_rigid][locally_rigid]
 
@@ -230,9 +228,58 @@ $$
     </b>
 </div>
 
+那么现在问题就在于，这里谈到的每个关键点的“周围区域”到底有多大，才会使得刚体性质的假设成立。于是问题变成去预测对于每个关节点来说，能使得刚体性质成立的区域了。对于每个关键点，我们通过神经网络预测出一个掩膜$M_k \in \mathbb{R}^{H \times W}$，那么我们有：
+$$
+\mathcal{F}_{\mathrm{coarse}} = \sum_{k=1}^{K+1} M_k \otimes \rho(h_k)
+\tag{4.1}
+$$
+其中的$\rho(\cdot)$表示对每个关键点的光流重复$H \times W$次，得到$\rho(\cdot)\in\mathbb{R}^{H \times W \times 2}$的张量，该过程如Fig 4.3所示，当然这里用箭头的形式表示了光流向量，其实本质上是一个$\mathbb{R}^2$的向量；而$\otimes$表示逐个元素的相乘。
 
+![repeat_hw][repeat_hw]
+
+<div align='center'>
+    <b>
+        Fig 4.3 通过在空间上复制每个关键点的光流向量，得到了K个光流图，每个光流图都是单个关键点的简单空间复制。
+    </b>
+</div>
+
+通常这个掩膜$M_k$通过U-net去进行学习得到，这里的U-net也即是Fig 4.1中的Dense Motion Network，用符号$M$表示，其设计的初衷是可以对某个关键点$k$呈现刚体区域进行显著性高亮，如Fig 4.4所示，并且为了考虑相对不变的背景，实际上需要学习出$K+1$个掩膜，其中一个掩膜用于标识背景，同时也需要$\rho([0,0])$用于表示背景区域不曾出现位移。
+
+![coarse_flow][coarse_flow]
+
+<div align='center'>
+    <b>
+        Fig 4.4 通过用掩膜去提取出每个关键点的具有局部刚体性质的区域。
+    </b>
+</div>
+
+除了掩膜之外，模块$M$同样需要预测$\mathcal{F}_{\mathrm{residual}}$，作为$\mathcal{F}_{\mathrm{coarse}}$的补充，其设计的初衷是预测某些非刚体性质的变换，非刚体性质的变换不能通过之前提到的分割主体部分然后进行掩膜的方法得到，因此需要独立出来，通过网络进行预测。于是我们有：
+$$
+\mathcal{F} = \mathcal{F}_{\mathrm{coarse}}+\mathcal{F}_{\mathrm{residual}}
+\tag{4.2}
+$$
+现在Dense Motion Network的框图如Fig 4.5所示，我们以上阐述了该模块的输出，现在考虑这个模块的输入。输入主要有稀疏光流图$\dot{H}$和静态图$\mathbf{x}$，然而在整个优化过程中，由于$\mathcal{F}$其实是和$\mathbf{x}^{\prime}$对齐的，而输入如果只是$\mathbf{x}$的信息，那么就可能存在优化过程中的困难，因为毕竟存在较大的差别，因此需要显式地先对输入静态图进行一定的变形，可以用双线性采样（Bilinear Sample）进行，记$f_{w}(\cdot)$为双线性采样算符，我们有：
+$$
+\mathbf{x}_k = f_w(\mathbf{x}, \rho(h_k))
+\tag{4.3}
+$$
+其中的$\mathbf{x}_k$是根据$\rho(h_k)$只对每个关键点光流进行变形形成的，将$\dot{H}$和$\{\mathbf{x}_k\}_{k=1,\cdots,K}$以及$\mathbf{x}$在通道轴进行拼接，然后作为U-net的输入。
+
+![dense_motion_network_Module][dense_motion_network_Module]
+
+<div align='center'>
+    <b>
+        Fig 4.5 Dense Motion Network的框图，其输入需要考虑密集光流图的对齐问题。
+    </b>
+</div>
 
 ## 一阶动作分解
+
+零阶动作分解的假设还是过于简单了，即便是关键点局部区域也不一定呈现出良好的刚体性质，在存在柔性衣物的影响下更是如此，因此引入了一阶动作分解的假设，除了引入的基本假设不同之外，模型其他大部分和零阶动作分解类似。在一阶动作分解下，基本假设变成了
+
+> 每个关键点周围的主体部件是局部仿射变换[13]的，我们称之为一阶动作分解。
+
+
 
 
 
@@ -244,9 +291,11 @@ $$
 
 
 
+# 端到端无监督训练
 
 
 
+# 论缺陷
 
 
 
@@ -276,7 +325,9 @@ $$
 
 [12]. Ronneberger, O., Fischer, P., & Brox, T. (2015, October). U-net: Convolutional networks for biomedical image segmentation. In *International Conference on Medical image computing and computer-assisted intervention* (pp. 234-241). Springer, Cham.
 
-[13]. 
+[13]. https://blog.csdn.net/LoseInVain/article/details/108454304
+
+[14]. 
 
 
 
@@ -299,6 +350,13 @@ $$
 [image_animation_framework]: ./imgs/image_animation_framework.png
 [dense_motion_network]: ./imgs/dense_motion_network.png
 [locally_rigid]: ./imgs/locally_rigid.png
+[repeat_hw]: ./imgs/repeat_hw.png
+[coarse_flow]: ./imgs/coarse_flow.png
+[dense_motion_network_Module]: ./imgs/dense_motion_network_Module.png
+
+
+
+
 
 
 
