@@ -1,6 +1,7 @@
 <div align='center'>
-    运动的零阶分解与一阶分解以及在图片动画化中的应用（The 0th-order and first-order decomposition of motion and the application in image animation）
+    运动的零阶分解与一阶分解以及在图片动画化中的应用 I（The 0th-order and first-order decomposition of motion and the application in image animation I）
 </div>
+
 
 <div align='right'>
     FesianXu 2020/09/16 at UESTC
@@ -279,25 +280,116 @@ $$
 
 > 每个关键点周围的主体部件是局部仿射变换[13]的，我们称之为一阶动作分解。
 
+我们接下来会更加形象地用图示解释这个假设，在此之前为了和论文[2]保持一致，先定义一些符号。
 
+我们称静态图为$\mathbf{S} \in \mathbb{R}^{3 \times H \times W}$，相当于之前谈到的$\mathbf{x}$；称驱动视频中的某一个驱动帧为$\mathbf{D} \in \mathbb{R}^{3 \times H \times W}$，相当于之前谈到的$\mathbf{x}^{\prime}$。其中密集光流图$\mathcal{F} \in \mathbb{R}^{H \times W \times 2}$用一个变换表示，有$\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{D}}:\mathbb{R}^2 \rightarrow \mathbb{R}^2$，表示从驱动帧到静态图的密集像素位置映射，我们称之为 **密集光流映射**。和在零阶动作分解章节不同的是，因为驱动帧的主体和静态图的主体可能差别较大（比如人体的衣着方式等），因而导致的不对齐性会影响效果，因此假设存在着一个中间态的抽象参考帧$\mathbf{R}$作为过渡，如Fig 4.6所示，其中我们称在驱动帧里面的点为$z_k \in \mathbb{R}^2$，在参考帧的点为$p_k \in \mathbb{R}^2$，在静态图的点为$w_k \in \mathbb{R}^2$， 不难知道有$p_k = \mathcal{T}_{\mathbf{R} \leftarrow \mathbf{D}}(z_k)$。那么此时，我们知道密集光流映射可以分解为：
+$$
+\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{D}} = \mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}} \circ \mathcal{T}_{\mathbf{R} \leftarrow \mathbf{D}}
+\tag{4.4}
+$$
+如果假设$\mathcal{T}_{\mathbf{R} \leftarrow \mathbf{D}}$在每个关键点局部是双射的，也即是有$\mathcal{T}_{\mathbf{R} \leftarrow \mathbf{D}} = \mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}^{-1}$，那么此时式子(4.4)变为：
+$$
+\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{D}} = \mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}} \circ \mathcal{T}_{\mathbf{R} \leftarrow \mathbf{D}} = 
+\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}} \circ \mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}^{-1}
+\tag{4.5}
+$$
+我们发现$\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}},\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}$都存在一个模式，那就是都是从$\mathbf{X} \leftarrow \mathbf{R}$，因此不妨假设有一个映射$\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}$，其中$\mathbf{X}$为任意帧。
 
+![ref_domain_to_target][ref_domain_to_target]
 
+<div align='center'>
+    <b>
+        Fig 4.6 将从驱动帧到静态图的映射分解成为了两个阶段，其中通过参考帧作为传递。
+    </b>
+</div>
 
+精彩的地方来了！因为该映射是一个函数，因此可以通过泰勒函数展开，对于关键点$p_k$周围领域$p$进行泰勒展开，有：
+$$
+\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p) = \mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p_k)+(\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k})(p-p_k)+o(||p-p_k||)
+\tag{4.6}
+$$
+其中$o(||p-p_k||)$为高阶无穷小项，可以忽略，而$(\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k})(p-p_k)$就是一阶近似项，我们通过这个一阶近似项去估计关键点周围领域的变换。从式子(4.6)中我们可以发现，映射$\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p)$取决于每个关键点以及其对应的Jacobians矩阵[14]  [^2]，有：
+$$
+\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p) \simeq \Bigg \{ 
+\Bigg \{ \mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p_1),\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_1}   \Bigg\},
+\cdots,
+\Bigg \{ \mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p_k),\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{X} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k}   \Bigg\}
+\Bigg\}
+\tag{4.7}
+$$
+类似地，对式子(4.5)进行泰勒展开（具体推导见[2]的Sup. Mat.），有：
+$$
+\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{D}}(z) \approx \mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p_k)+J_k(z-\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k))
+\tag{4.8}
+$$
+其中：
+$$
+J_k = \Bigg ( \dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k} \Bigg)
+\Bigg ( \dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k} \Bigg)^{-1}
+\tag{4.9}
+$$
+而式子(4.8)中的$\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p_k), \mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k)$实际上关键点的稀疏光流映射，可以用之前在零阶动作分解一章中谈到的无监督关键点提取的方式获得，唯一不同的是，无论是对$\mathbf{S}$还是$\mathbf{D}$的每个关键点 $k$ 预测都要附带输出四个通道，这些输出是作为对式子(4.9)中的$\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k}$和$\dfrac{\mathrm{d}}{\mathrm{d}p}\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p)\bigg |_{p=p_k}$系数的估计（具体细节还请移步论文[2]）。
 
+这个时候的$J_k \in \mathbb{R}^{2 \times 2}$是该映射的Jacobians矩阵，当$J_k = \mathbb{I}$（其中$\mathbb{I}$为单位矩阵）时，此时退化为零阶动作分解。因为此时显然有:
+$$
+\begin{aligned}
+\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{D}}(z) &\approx \mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p_k)+z-\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k) \\
+&= z-(\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k)-\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p_k)) \\
+&= z-(H^{\prime}-H) \\
+&= z-\dot{H}
+\end{aligned}
+\tag{4.10}
+$$
+其中的$\dot{H}$就是式子(3.2)中提到的稀疏光流图，因此零阶动作分解的实质就是局部刚性变换。
 
-# 变形模型
+由此，我们可以从几何变换上解释动作的一阶分解，因为$z^{\prime} \in \mathbb{R}^{2 \times 1} = z-\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k)$可以视为是关键点$p_k$周围领域与关键点之间的位移，这个位移乘上Jacobians矩阵$J_k \in \mathbb{R}^{2 \times 2}$就是一阶近似项。不妨假设：
+$$
+\begin{aligned}
+J_k &= 
+\left[
+\begin{matrix}
+J_{11} & J_{12} \\
+J_{21} & J_{22}
+\end{matrix}
+\right] \\
+z^{\prime} &= [z_{1},z_{2}]^{\mathrm{T}}
+\end{aligned}
+\tag{4.11}
+$$
+因此考虑到式子(4.8)，有：
+$$
+\begin{aligned}
+z_{1}^{\prime} &= J_{11}z_1+J_{12}z_2 \\
+z_{2}^{\prime} &= J_{21}z_1+J_{22}z_2
+\end{aligned}
+\tag{4.12}
+$$
+可以视为是对$z^{\prime}$的旋转，尺度放缩和切变（不包括平移，因为没有偏移项，具体可见仿射变换具体定义[15]），因此称之为是 **（关键点）局部的仿射变换先验假设就是一阶动作分解的本质**。
 
+那么整理起来，我们的整个框图如Fig 4.7所示，和零阶动作分解框图Fig 4.1不同的是，其预测并且添加了Jacobians矩阵项。
 
+![first_order_network][first_order_network]
 
+<div align='center'>
+    <b>
+        Fig 4.7 引入了一阶动作分解后的框图，大部分组件功能和零阶动作分解框图类似。
+    </b>
+</div>
+当然，同样我们需要通过稀疏光流映射去估计密集光流映射，因此同样会有Dense Motion网络，这个网络和Fig 4.5类似，会去预测出掩膜$M_k$，该掩膜的作用和零阶动作分解的作用一致，如Fig 4.4所示。那么有密集光流映射估计$\mathcal{\hat{T}}_{\mathbf{S} \leftarrow \mathbf{D}}(z)$：
+$$
+\hat{\mathcal{T}}_{\mathbf{S} \leftarrow \mathbf{D}}(z) =
+M_0z + \sum_{k=1}^{K}M_k (\mathcal{T}_{\mathbf{S} \leftarrow \mathbf{R}}(p_k)+J_k(z-\mathcal{T}_{\mathbf{D} \leftarrow \mathbf{R}}(p_k)))
+\tag{4.13}
+$$
+类似地，其中$M_0$是对背景的掩膜。具体该网络的输入就不再赘述了，具体见论文[2]。
 
+需要注意的是，在文章[2]中，作者还用Dense Motion网络学习了一个掩膜$\mathcal{\hat{O}}_{\mathbf{S} \leftarrow \mathbf{D}}$ ，该掩膜的作用是去预测被遮挡的部分，该部分不能通过密集光流进行变形得到，需要进行inpainting [16]填充，具体细节不赘述。
 
-# 端到端无监督训练
+# 总结
 
+在本文，我们通过引入先验，对动作进行分解，可以从稀疏光流图估计出密集光流图，通过将密集光流图输入到变形模型中，可以实现从驱动帧到静态图的转换，这个转换是实现图片动画化的一个重要技术。当然，限于篇幅，还有很多技术点没有谈到，在下个博文，我们将会介绍对应的变形模型，端到端无监督训练模式和该系列模型的缺陷等。一路不易，敬请期待，谢谢支持。
 
-
-# 论缺陷
-
-
+----
 
 # Reference
 
@@ -327,7 +419,11 @@ $$
 
 [13]. https://blog.csdn.net/LoseInVain/article/details/108454304
 
-[14]. 
+[14]. https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant
+
+[15]. https://blog.csdn.net/LoseInVain/article/details/102756630
+
+[16]. https://www.wandb.com/articles/introduction-to-image-inpainting-with-deep-learning
 
 
 
@@ -354,6 +450,10 @@ $$
 [coarse_flow]: ./imgs/coarse_flow.png
 [dense_motion_network_Module]: ./imgs/dense_motion_network_Module.png
 
+[ref_domain_to_target]: ./imgs/ref_domain_to_target.png
+
+[first_order_network]: ./imgs/first_order_network.png
+
 
 
 
@@ -364,3 +464,4 @@ $$
 
 [^1]: 这里采用高斯分布拟合的目的还有一个就是，在无监督训练开始时，其预测结果是随机的，将其用高斯分布去拟合，才能给后续的优化提供方便。
 
+[^2]: Jacobians矩阵[14]可以视为是多元函数的导数，在对多元函数进行泰勒展开时候常见。
