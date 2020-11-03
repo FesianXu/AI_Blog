@@ -1,6 +1,7 @@
 <div align='center'>
-    Shift卷积算子
+紧致卷积网络设计——Shift卷积算子
 </div>
+
 
 <div align='right'>
     FesianXu 2020/10/29 at UESTC
@@ -8,7 +9,7 @@
 
 # 前言
 
-最近笔者在阅读关于骨骼点数据动作识别的文献Shift-GCN[2]的时候，发现了原来还有Shift卷积算子[1]这种东西，该算子是一种可供作为空间卷积的替代品，其理论上不需要增添额外的计算量和参数量，是一种做紧致模型设计的好工具。本文作为笔记纪录笔者的论文阅读思考， **如有谬误请联系指出，转载请联系作者并注明出处，谢谢**。
+最近笔者在阅读关于骨骼点数据动作识别的文献Shift-GCN[2]的时候，发现了原来还有Shift卷积算子[1]这种东西，该算子是一种可供作为空间卷积的替代品，其理论上不需要增添额外的计算量和参数量，就可以通过1x1卷积实现空间域和通道域的卷积，是一种做紧致模型设计的好工具。本文作为笔记纪录笔者的论文阅读思考， **如有谬误请联系指出，转载请联系作者并注明出处，谢谢**。
 
 $\nabla$ 联系方式：
 
@@ -26,12 +27,12 @@ github: https://github.com/FesianXu
 
 # 卷积计算及其优化
 
-为了讨论的连续性，我们先简单回顾下传统的深度学习卷积计算。给定一个输入张量，如Fig 1.1中的蓝色块所示，其尺寸为$\mathbf{F} \in \mathbb{R}^{D_F \times D_F \times M}$；给定卷积核$\mathbf{K} \in \mathbb{R}^{D_K \times D_K \times M \times N}$，如Fig 1.1中的蓝色虚线框所示，为了方便起见，假定步进`stride = 1`，那么最终得到输出结果为$\mathbf{G} \in \mathbb{R}^{D_F \times D_F \times N}$，计算过程如式子(1.1)所示：
+为了讨论的连续性，我们先简单回顾下传统的深度学习卷积计算。给定一个输入张量，如Fig 1.1中的蓝色块所示，其尺寸为$\mathbf{F} \in \mathbb{R}^{D_F \times D_F \times M}$；给定卷积核$\mathbf{K} \in \mathbb{R}^{D_K \times D_K \times M \times N}$，如Fig 1.1中的蓝色虚线框所示，为了方便起见，假定步进`stride = 1`，`padding = 1`，那么最终得到输出结果为$\mathbf{G} \in \mathbb{R}^{D_F \times D_F \times N}$，计算过程如式子(1.1)所示：
 $$
 G_{k,l,n} = \sum_{i,j,m} K_{i,j,m,n}F_{k+\hat{i},l+\hat{j},m}
 \tag{1.1}
 $$
-其中$(k,l)$为卷积中心，而$\hat{i} = i-\lfloor D_K/2\rfloor$，$\hat{j} = j-\lfloor D_K /2 \rfloor$是卷积计算半径的索引。不难知道，该卷积操作的参数量为$M \times N \times D_K^2$。计算量也容易计算，考虑到每个卷积操作都需要对每个卷积核中的参数进行乘法计算，那么有乘法因子$D_K^2$，而考虑到`stride=1`而且存在填充，那么容易知道计算量为$M \times N \times D_F^2 \times D_K^2$ FLOPs。容易发现，卷积的计算量和参数量与卷积核大小$D_K$呈现着二次增长的关系，这使得卷积的计算量和参数量增长都随着网络设计的加深变得难以控制。
+其中$(k,l)$为卷积中心，而$\hat{i} = i-\lfloor D_K/2\rfloor$，$\hat{j} = j-\lfloor D_K /2 \rfloor$是卷积计算半径的索引。不难知道，该卷积操作的参数量为$M \times N \times D_K^2$。计算量也容易计算，考虑到每个卷积操作都需要对每个卷积核中的参数进行乘法计算，那么有乘法因子$D_K^2$，而考虑到`stride = 1`而且存在填充，那么容易知道计算量为$M \times N \times D_F^2 \times D_K^2$ FLOPs。容易发现，卷积的计算量和参数量与卷积核大小$D_K$呈现着二次增长的关系，这使得卷积的计算量和参数量增长都随着网络设计的加深变得难以控制。
 
 ![convolution_operator][convolution_operator]
 
@@ -138,13 +139,46 @@ $$
 \tilde{G} = \mathcal{P}_{\pi_2}(\mathcal{K}_{\pi}(\mathcal{P}_{\pi_1}(F))) = (\mathcal{P}_{\pi_2} \circ \mathcal{K}_{\pi} \circ \mathcal{P}_{\pi_1})(F)
 \tag{2.3}
 $$
-其中$\circ$表示算子组合。
+其中$\circ$表示算子组合。令$\mathcal{P}_1(\cdot)$和$\mathcal{P}_2(\cdot)$分别表示1x1卷积操作，我们有式子(2.4)
+$$
+\begin{aligned}
+\hat{P}_1 &= \mathcal{P}_1 \circ \mathcal{P}_{\pi_1} \\
+\hat{P}_2 &= \mathcal{P}_2 \circ \mathcal{P}_{\pi_2} 
+\end{aligned}
+\tag{2.4}
+$$
+这一点不难理解，即便对1x1卷积的输入进行通道排序重组，在学习过程中，通过算法去调整1x1卷积的参数的顺序，就可以通过构造的方式，实现$\hat{\mathcal{P}}_{x}$和$\mathcal{P}_{x}$之间的双射（bijective）。如式子(2.5)所示，就结论而言，不需要考虑通道的排序，比如只需要依次按着顺序赋值某个平移组，使得其不重复即可。通过用1x1卷积“三明治”夹着shift卷积的操作，从理论上可以等价于其他任何形式的通道排序后的结果。这点比较绕，有疑问的读者请在评论区留言。
+$$
+\begin{aligned}
+G &= (\mathcal{P}_{2} \circ \mathcal{P}_{\pi_2} \circ \mathcal{K}_{\pi} \circ \mathcal{P}_{\pi_1} \circ \mathcal{P}_1)(F) \\
+&= ((\mathcal{P}_{2} \circ \mathcal{P}_{\pi_2}) \circ \mathcal{K}_{\pi} \circ (\mathcal{P}_{\pi_1} \circ \mathcal{P}_1))(F) \\
+&= (\hat{\mathcal{P}}_2 \circ \mathcal{K}_{\pi} \circ \hat{\mathcal{P}}_1)(F)
+\end{aligned}
+\tag{2.5}
+$$
+根据以上讨论，根据shift算子构建出来的卷积模块类似于Fig 2.4所示，注意到蓝色实线块的`1x1 conv -> shift kernel -> 1x1 conv`正是和我们的讨论一样的结构，而`Identity`块则是考虑到仿照ResNet的设计补充的`short cut`链路。蓝色虚线块的`shift`块是实验补充的一个设计，存在虚线部分的shift块的设计称之为$SC^2$结构，只存在实线部分的设计则称之为$CSC$结构。
+
+![shift_resnet_block][shift_resnet_block]
+
+<div align='center'>
+    <b>
+        Fig 2.4 基于shift卷积算子构建的ResNet网络基本模块。
+    </b>
+</div>
+
+shift卷积算子的有效性在文章[1]设置了很多实验进行对比，这里只给出证实其在分类任务上精度和计算量/参数量的一个比较，如Fig 2.5所示，我们发现shift算子的确在计算量和参数量上有着比较大的优势。
+
+![exp_result][exp_result]
+
+<div align='center'>
+    <b>
+        Fig 2.5 shift卷积网络在CIFAR10/100分类任务上的表现对比表。
+    </b>
+</div>
 
 
 
-
-
-
+在[7]中有shift卷积算子前向和反向计算的cuda代码，其主要操作就是进行卷积输入张量的访存选择。有兴趣的读者可以自行移步去阅读。
 
 
 
@@ -165,7 +199,7 @@ $$
 
 [6]. https://baike.baidu.com/item/%E5%B1%80%E9%83%A8%E6%80%A7%E5%8E%9F%E7%90%86
 
-
+[7]. https://github.com/peterhj/shiftnet_cuda_v2/blob/master/src/shiftnet_cuda_kernels.cu
 
 
 
@@ -179,6 +213,8 @@ $$
 
 [shift_conv_detail]: ./imgs/shift_conv_detail.png
 [center_group]: ./imgs/center_group.png
+[shift_resnet_block]: ./imgs/shift_resnet_block.png
+[exp_result]: ./imgs/exp_result.png
 
 
 
