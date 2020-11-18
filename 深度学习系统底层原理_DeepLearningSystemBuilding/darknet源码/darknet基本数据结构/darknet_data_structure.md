@@ -16,9 +16,11 @@ $\nabla$ 联系方式：
 
 **QQ**: 973926198
 
-github: https://github.com/FesianXu
+**github**: https://github.com/FesianXu
 
 **知乎专栏**: [计算机视觉/计算机图形理论与应用](https://zhuanlan.zhihu.com/c_1265262560611299328)
+
+**微信公众号**： ![qrcode][qrcode]
 
 ----
 
@@ -30,7 +32,7 @@ github: https://github.com/FesianXu
 
 # 数据结构
 
-## 为了解析方便定义的数据结构 
+## 为了解析方便而定义的数据结构 
 
 类似于在`caffe`中利用`prototxt`文件去表示一个网络的结构，每一层的超参数以及整个网络的超参数（例如学习率，优化器参数等），在`darknet`中采用了`cfg`文件去配置网络的这一切参数，可以视为是简单版本的`prototxt`文件，以下以`resnet18.cfg`为例子，截取了其中的头尾部分的`cfg`片段：
 
@@ -245,8 +247,8 @@ typedef struct network{
 
     float learning_rate; // 学习率
     float momentum;   // SGD动量大小
-    float decay;     // L2正则
-    float gamma;
+    float decay;     // L2正则衰减系数
+    float gamma; 
     float scale;
     float power;
     int time_steps;
@@ -256,14 +258,15 @@ typedef struct network{
     int   *steps;
     int num_steps;
     int burn_in;
-
+	// 和adam优化器相关的参数
     int adam;
     float B1;
     float B2;
     float eps;
-
+	// 输入输出的维度
     int inputs;
     int outputs;
+    // ground truth的维度
     int truths;
     int notruth;
     int h, w, c;
@@ -278,16 +281,23 @@ typedef struct network{
     float saturation;
     float hue;
     int random;
-
+    // darknet对于每个GPU都维护着同一个网络network，每个network通过gpu_index进行区分
     int gpu_index;
     tree *hierarchy;
-
+	
+    // 中间变量，用于临时存储某一层的输入，包括一个批次的输入，用于完成前向和反向传播。
     float *input;
-    float *truth;
+    // 中间变量，和上面的输入是对应的，用于临时储存对应的标签数据。
+    float *truth; 
+    // delta用于梯度传播，也是一个临时变量，用于临时储存某个层的sensitivity map。在反向传播的时候，当经过当前层的时候，需要储存之前层的sensitivity map。我们会后续讨论。
     float *delta;
+    // workspace 是公共的运行空间，用于纪录所有层中需要的最大计算内容空间，其大小为workspace_size。因为在GPU或者CPU中，同一时间只有一个层在运行，因此保存所有层中最大的需求即可。net.workspace用于储存feature特征。
     float *workspace;
+    // 这个标识参数用于判断网络是否处于训练状态，如果是，这个值为1。在一些操作中，比如dropout层，forward_dropout_layer()只在训练阶段才会被采用。
     int train;
+    // 标识参数，指明了当前网络的活跃（active）层
     int index;
+    // 每一层的loss，只有[yolo]层才会有值。
     float *cost;
     float clip;
 } network;
@@ -299,10 +309,13 @@ typedef struct network{
         code 6. network数据结构的定义。
     </b>
 </div>
+从code 6中，备注了大部分参数的含义，其中需要解释的是`subdivisions`，子划分[7]的作用是对`batch size`进行进一步的划分，以便于某些小显存的GPU也能够运行程序。例如本身设置的`batch size = 64`，如果GPU显存过小，不能负担大的`batch size`，那么通过设置`subdivisions = 8`，可以将一个批次分为8次完成（当然，梯度是会累积的，类似于[8]的操作），因此一个`mini batch size = 64/8 = 8`了，此时GPU显存就可以装得下了。
+
+还有一个元素需要解释的就是`float *workspace`，该指针变量开辟了一大段`float`类型的内存空间，用于作为当前的运行环境。我们之后在讨论如何解析`darknet`的`cfg`配置文件的时候，会讨论如何确定这个`workspace`的空间大小。因为不管什么时候（不考虑多模型多设备并行），GPU或者CPU中只有模型的某一层在运行，因此只要求得所有层中的最大内存要求，然后根据这个内存要求开辟一个内存池用于作为模型的工作空间就足够了。因此不管是模型的哪个层，其特征feature都储存在了`workspace`。我们后续再继续讨论这个元素，目前知道它是一个公共内存空间即可。
 
 ## 其他类型的数据结构
 
-以上提到的数据结构是为了解析网络配置，定义与初始化网络结构而设计的，有些数据结构则是为了作为喂入数据的容器而存在的，类似于`pytorch`中的`tensor`，不过`tensor`结构是自带梯度的，而`darknet`的只是为了喂数据而已，没有梯度信息。
+以上提到的数据结构是为了解析网络配置，定义与初始化网络结构而设计的，有些数据结构则是为了作为喂入数据的容器而存在的，类似于`pytorch`中的`tensor`，不过`tensor`结构是自带梯度的，而`darknet`的只是为了喂数据而已，没有梯度信息，`darknet`的梯度流信息储存在了`network`中。
 
 最基本的单元就是`matrix`，指定了行列数和一个二阶的单浮点指针表示数据负载，如code 7所示。
 
@@ -337,14 +350,25 @@ typedef struct{
         code 8. data数据结构的定义。
     </b>
 </div>
-
 正如之前所述的，`darknet`为`yolo`量身定制，是进行目标识别任务的，因此`data`中会出现和目标检测有关的包围盒`box** boxes`等数据。
 
 
 
+# 总结
+
+总得来说，`darknet`的常见数据类型主要有以下几种：
+
+1. **解析配置文件时候的辅助数据结构**：`node`, `list`, `kvp`,`section`。
+2. **构建网络时候的数据结构**： `layer`,`network`。
+3. **数据管道的数据结构**：`matrix`,`data`,`metadata`,`box_label`,`box`,`data_type`,`image`,`IMTYPE`,`detection`。
+4. **网络相关，训练过程中的数据结构**： `learning_rate_policy`,`ACTIVATION`,`BINARY_ACTIVATION`,`COST_TYPE`,`LAYER_TYPE`,`update_args`。
+5. **暂时不知道拿来干啥用的数据结构**： `tree`。
 
 
 
+# 声明
+
+该系列博客仍处在开发中，笔者还没完全通读完`darknet`，目前处在笔记阶段，可能会有所谬误，因此会随时存在更正更新，如有错误也欢迎各位读者朋友在评论区指出。
 
 # Reference
 
@@ -360,11 +384,19 @@ typedef struct{
 
 [6]. Redmon, J., & Farhadi, A. (2018). Yolov3: An incremental improvement. *arXiv preprint arXiv:1804.02767*.
 
+[7]. https://github.com/pjreddie/darknet/issues/224#issuecomment-335771840
+
+[8]. https://blog.csdn.net/LoseInVain/article/details/82916163
+
+
+
 
 
 [double_linked_list]: ./imgs/double_linked_list.png
 
 [section_linked_list]: ./imgs/section_linked_list.png
+
+[qrcode]: ./imgs/qrcode.jpg
 
 
 
