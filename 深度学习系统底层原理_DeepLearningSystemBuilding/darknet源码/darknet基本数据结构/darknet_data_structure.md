@@ -58,11 +58,7 @@ max_batches=800000
 momentum=0.9
 decay=0.0005
 
-angle=7
-hue=.1
-saturation=.75
-exposure=.75
-aspect=.75
+...
 
 [convolutional]
 batch_normalize=1
@@ -76,26 +72,7 @@ activation=leaky
 size=2
 stride=2
 
-# Residual Block
-[convolutional]
-batch_normalize=1
-filters=64
-size=3
-stride=1
-pad=1
-activation=leaky
-
-[convolutional]
-batch_normalize=1
-filters=64
-size=3
-stride=1
-pad=1
-activation=linear
-
-[shortcut]
-activation=leaky
-from=-3
+...
 
 [convolutional]
 filters=1000
@@ -186,9 +163,9 @@ typedef struct{
 
 ## 网络结构的数据结构
 
-之前谈到的数据结构是为了解析`cfg`文件方便而定义的，考虑到网络的计算（包括前向和后向计算），参数保存等，我们还需要一些其他数据结构，这些数据结构可以基于解析得到的双向网络配置链表，初始化整个神经网络的参数和结构。这些数据结构中，最重要的莫过于`layer`和`network`。
+之前谈到的数据结构是为了解析`cfg`文件方便而定义的，考虑到网络的计算（包括前向和后向计算），参数保存等，我们还需要一些其他数据结构，这些数据结构可以基于解析得到的双向网络配置链表，初始化整个神经网络的参数和结构。这些数据结构中，最重要的莫过于`layer`和`network`，这两个结构体都在`/include/darknet.h`中定义。
 
-`layer`的数据结构定义如code 5所示，我们发现这个定义中有着非常多的元素（其实我还省略掉了一些和GPU计算有关的元素，因为在本文中假设只使用CPU进行计算，这样又便于我们分析整体代码的结构。），其中元素那么多的原因在于，作者采用的纯C语言的编写方式，没办法直接采用C++的面向对象的思想设计代码，这意味着不能通过继承的方式，设置一个`layer`父类，然后不同的`convolution_layer`,`rnn_layer`,`crnn_layer`,`cost_layer`,`connected_layer`等子类继承这个共有的父类，因为不同子类（也就是不同层）的参数类别千差万别，因此可以做到比较好的隔离。然而，C语言是面向过程编程的，因此作者设计的`layer`类就必须包括该框架中需要的所有层的所有参数类别，这使得该数据结构异常的臃肿，而且难以扩展，定制其他层。不过暂且不讨论这些缺点，我们先看看该层中有哪些参数需要注意的吧。
+`layer`的数据结构定义如code 5所示（省略掉了很多元素以便于展示，具体定义见[2]），我们发现这个定义中有着非常多的元素（其实我还省略掉了一些和GPU计算有关的元素，因为在本文中假设只使用CPU进行计算，这样又便于我们分析整体代码的结构。），其中元素那么多的原因在于，作者采用的纯C语言的编写方式，没办法直接采用C++的面向对象的思想设计代码，这意味着不能通过继承的方式，设置一个`layer`父类，然后不同的`convolution_layer`,`rnn_layer`,`crnn_layer`,`cost_layer`,`connected_layer`等子类继承这个共有的父类，因为不同子类（也就是不同层）的参数类别千差万别，因此可以做到比较好的隔离。然而，C语言是面向过程编程的，因此作者设计的`layer`类就必须包括该框架中需要的所有层的所有参数类别，这使得该数据结构异常的臃肿，而且难以扩展，定制其他层。不过暂且不讨论这些缺点，我们先看看该层中有哪些参数需要注意的吧。
 
 ```c
 struct layer{
@@ -208,193 +185,7 @@ struct layer{
     int nweights;
     int nbiases;
     int extra;
-    int truths;
-    int h,w,c;
-    int out_h, out_w, out_c;
-    int n;
-    int max_boxes;
-    int groups;
-    int size;
-    int side;
-    int stride;
-    int reverse;
-    int flatten;
-    int spatial;
-    int pad;
-    int sqrt;
-    int flip;
-    int index;
-    int binary;
-    int xnor;
-    int steps;
-    int hidden;
-    int truth;
-    float smooth;
-    float dot;
-    float angle;
-    float jitter;
-    float saturation;
-    float exposure;
-    float shift;
-    float ratio;
-    float learning_rate_scale;
-    float clip;
-    int noloss;
-    int softmax;
-    int classes;
-    int coords;
-    int background;
-    int rescore;
-    int objectness;
-    int joint;
-    int noadjust;
-    int reorg;
-    int log;
-    int tanh;
-    int *mask;
-    int total;
-
-    float alpha;
-    float beta;
-    float kappa;
-
-    float coord_scale;
-    float object_scale;
-    float noobject_scale;
-    float mask_scale;
-    float class_scale;
-    int bias_match;
-    int random;
-    float ignore_thresh;
-    float truth_thresh;
-    float thresh;
-    float focus;
-    int classfix;
-    int absolute;
-
-    int onlyforward;
-    int stopbackward;
-    int dontload;
-    int dontsave;
-    int dontloadscales;
-    int numload;
-
-    float temperature;
-    float probability;
-    float scale;
-
-    char  * cweights;
-    int   * indexes;
-    int   * input_layers;
-    int   * input_sizes;
-    int   * map;
-    int   * counts;
-    float ** sums;
-    float * rand;
-    float * cost;
-    float * state;
-    float * prev_state;
-    float * forgot_state;
-    float * forgot_delta;
-    float * state_delta;
-    float * combine_cpu;
-    float * combine_delta_cpu;
-
-    float * concat;
-    float * concat_delta;
-
-    float * binary_weights;
-
-    float * biases;
-    float * bias_updates;
-
-    float * scales;
-    float * scale_updates;
-
-    float * weights;
-    float * weight_updates;
-
-    float * delta;
-    float * output;
-    float * loss;
-    float * squared;
-    float * norms;
-
-    float * spatial_mean;
-    float * mean;
-    float * variance;
-
-    float * mean_delta;
-    float * variance_delta;
-
-    float * rolling_mean;
-    float * rolling_variance;
-
-    float * x;
-    float * x_norm;
-
-    float * m;
-    float * v;
-    
-    float * bias_m;
-    float * bias_v;
-    float * scale_m;
-    float * scale_v;
-
-
-    float *z_cpu;
-    float *r_cpu;
-    float *h_cpu;
-    float * prev_state_cpu;
-
-    float *temp_cpu;
-    float *temp2_cpu;
-    float *temp3_cpu;
-
-    float *dh_cpu;
-    float *hh_cpu;
-    float *prev_cell_cpu;
-    float *cell_cpu;
-    float *f_cpu;
-    float *i_cpu;
-    float *g_cpu;
-    float *o_cpu;
-    float *c_cpu;
-    float *dc_cpu; 
-
-    float * binary_input;
-
-    struct layer *input_layer;
-    struct layer *self_layer;
-    struct layer *output_layer;
-
-    struct layer *reset_layer;
-    struct layer *update_layer;
-    struct layer *state_layer;
-
-    struct layer *input_gate_layer;
-    struct layer *state_gate_layer;
-    struct layer *input_save_layer;
-    struct layer *state_save_layer;
-    struct layer *input_state_layer;
-    struct layer *state_state_layer;
-
-    struct layer *input_z_layer;
-    struct layer *state_z_layer;
-
-    struct layer *input_r_layer;
-    struct layer *state_r_layer;
-
-    struct layer *input_h_layer;
-    struct layer *state_h_layer;
-	
-    struct layer *wz;
-    struct layer *uz;
-    struct layer *wr;
-    struct layer *ur;
-    struct layer *wh;
-    struct layer *uh;
-    struct layer *uo;
+...
     struct layer *wo;
     struct layer *uf;
     struct layer *wf;
@@ -409,34 +200,52 @@ struct layer{
 
 <div align='center'>
     <b>
-        code 5. layer的定义，其中为了简便，省略掉了和GPU计算有关的元素。
+        code 5. layer的定义，其中为了简便，省略掉了和GPU计算有关的元素，和大部分中间的元素，只展示了头尾的部分元素。
     </b>
 </div>
 
-第一个元素`LAYER_TYPE`是一个枚举类型，用于指定该层的类型；第二个元素`ACTIVATION`也是一个枚举类型，指定激活函数类型；第三个元素`COST_TYPE`同样是枚举类型，指定损失函数类型。5-7行的三个函数指针（指向函数的指针）比较特别，
+第一个元素`LAYER_TYPE`是一个枚举类型，用于指定该层的类型；第二个元素`ACTIVATION`也是一个枚举类型，指定激活函数类型；第三个元素`COST_TYPE`同样是枚举类型，指定损失函数类型。5-7行的三个函数指针（函数指针是指向函数的指针变量，即本质是一个指针变量）比较特别，是指的该层的前向传播计算细节`void (*forward)(struct layer, struct network);`，该层的反向传播计算细节`void (*backward)(struct layer, struct network);`，以及模型训练过程中的参数更新策略` void (*update)(struct layer, update_args);`。这些函数指针都需要根据特定的具体层进行特别指定，因此是一种回调函数，需要指定层进行特定的回调函数注册。大部分神经网络层都会有其特有的参数，比如卷积层的其中一些参数示例，其中以指针形式出现的参数都是需要学习的（也需要初始化），以其他参数大多数都是超参数：
 
+```c
+float * weights; // 卷积权值
+float * biases; // 偏置
+int nweights; // 权值参数量
+int nbiases; // 偏置参数量
+int groups; // 组可分离卷积的组数
+int stride; // 步进
+int pad;    // 填充大小
+...
+```
 
+还有些参数是每个层都共用的，比如输入指针，输出指针等：
 
+```c
+int   * input_layers; // 该层的上一层，也即是输入层
+int   * input_sizes;
+float * output; // 该层的输出
+...
+```
 
+当然，`layer`数据结构还有很多其他元素，比如`batch_normalize`是否运行`batch_norm`[3]，是否该层存在`shortcut`等，注意到因为`darknet`是为了`yolo`系列网络[4,5,6]专门设计的框架，因此`layer`中还有很多元素是和`yolo`网络有关的，这点不再进一步阐述，我们只关注通用的神经网络底层需要的元素。
 
-
+这个只是一个神经网络层的数据结构定义而已，为了表示整个神经网络结构，还需要定义一个`network`数据结构，如code 6所示，该数据结构储存有定义整个网络必须的元素，比如`batch size`大小，`epoch`大小，每一层的定义`layer* layers`，学习率更新策略，学习率，动量等等。我们需要做的就是利用解析好的网络配置链表，基于`network`数据结构去初始化该数据结构，通过这个数据结构就可以表示整个网络，而且具备有计算，梯度传导，参数更新等功能，可以视为是一个完整的单元了。
 
 
 ```c
 typedef struct network{
-    int n;
-    int batch;
-    size_t *seen; // how many pictures have been processed already
-    int *t; // ? 
-    float epoch;
-    int subdivisions;
-    layer *layers;
-    float *output;
-    learning_rate_policy policy;
+    int n; // 网络中层的数量
+    int batch; // 批次大小
+    size_t *seen; // 已经有多少图片被处理过了
+    int *t; // ?
+    float epoch; // 世代大小
+    int subdivisions; // 子划分
+    layer *layers; // 每一个层的定义
+    float *output; // 输出
+    learning_rate_policy policy; // 学习率更新策略
 
-    float learning_rate;
-    float momentum;
-    float decay;
+    float learning_rate; // 学习率
+    float momentum;   // SGD动量大小
+    float decay;     // L2正则
     float gamma;
     float scale;
     float power;
@@ -485,6 +294,51 @@ typedef struct network{
 
 ```
 
+<div align='center'>
+    <b>
+        code 6. network数据结构的定义。
+    </b>
+</div>
+
+## 其他类型的数据结构
+
+以上提到的数据结构是为了解析网络配置，定义与初始化网络结构而设计的，有些数据结构则是为了作为喂入数据的容器而存在的，类似于`pytorch`中的`tensor`，不过`tensor`结构是自带梯度的，而`darknet`的只是为了喂数据而已，没有梯度信息。
+
+最基本的单元就是`matrix`，指定了行列数和一个二阶的单浮点指针表示数据负载，如code 7所示。
+
+```c
+typedef struct matrix{
+    int rows, cols;
+    float **vals;
+} matrix;
+```
+
+<div align='center'>
+    <b>
+        code 7. matrix数据结构的定义。
+    </b>
+</div>
+
+其中每一行是一个样本，每一列是一个特征维度，如果是图片样本，那需要把图片拉直成向量之后，塞到每一行。这个`matrix`既可以表示训练样本数据，也可以表示标签数据，因此有`data`数据结构。
+
+```c
+typedef struct{
+    int w, h;
+    matrix X;
+    matrix y;
+    int shallow;
+    int *num_boxes;
+    box **boxes;
+} data;
+```
+
+<div align='center'>
+    <b>
+        code 8. data数据结构的定义。
+    </b>
+</div>
+
+正如之前所述的，`darknet`为`yolo`量身定制，是进行目标识别任务的，因此`data`中会出现和目标检测有关的包围盒`box** boxes`等数据。
 
 
 
@@ -496,9 +350,15 @@ typedef struct network{
 
 [1]. https://pjreddie.com/darknet/
 
-[2]. 
+[2]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/include/darknet.h#L115
 
+[3]. https://fesian.blog.csdn.net/article/details/86476010
 
+[4]. Redmon, J., Divvala, S., Girshick, R., & Farhadi, A. (2016). You only look once: Unified, real-time object detection. In *Proceedings of the IEEE conference on computer vision and pattern recognition* (pp. 779-788).
+
+[5]. Redmon, J., & Farhadi, A. (2017). YOLO9000: better, faster, stronger. In *Proceedings of the IEEE conference on computer vision and pattern recognition* (pp. 7263-7271).
+
+[6]. Redmon, J., & Farhadi, A. (2018). Yolov3: An incremental improvement. *arXiv preprint arXiv:1804.02767*.
 
 
 
