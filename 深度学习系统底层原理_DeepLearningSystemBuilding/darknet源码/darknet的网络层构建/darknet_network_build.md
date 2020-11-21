@@ -314,8 +314,81 @@ static size_t get_workspace_size(layer l){
         code 2.3 get_workspace_size 该函数计算给定的layer的内存需求，省略了关于CUDNN部分的代码。
     </b>
 </div>
+代码中有三行很重要，是和后续的前向，反向计算，参数更新有关的：
 
-代码中的`self.`
+```c
+l.forward = forward_convolutional_layer;
+l.backward = backward_convolutional_layer;
+l.update = update_convolutional_layer;
+// 注册前向，反向和更新回调函数。
+```
+
+容易知道，每个不同的层，需要注册不同的这三类函数：
+
+```c
+forward_xxx_layer(); // 用以定义该层的前向计算策略
+backward_xxx_layer(); // 用以定义该层的反向计算策略
+update_xxx_layer(); // 用以定义该层的参数更新策略
+```
+
+我们具体挑出来看看细节。
+
+## forward_xxx_layer
+
+同样，我们以`forward_convolutional_layer`作为代表进行剖析。
+
+```c
+void forward_convolutional_layer(convolutional_layer l, network net)
+{
+    int i, j;
+
+    fill_cpu(l.outputs*l.batch, 0, l.output, 1);
+
+    int m = l.n/l.groups;
+    int k = l.size*l.size*l.c/l.groups;
+    int n = l.out_w*l.out_h;
+    for(i = 0; i < l.batch; ++i){
+        for(j = 0; j < l.groups; ++j){
+            float *a = l.weights + j*l.nweights/l.groups;
+            float *b = net.workspace;
+            float *c = l.output + (i*l.groups + j)*n*m;
+            float *im =  net.input + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
+
+            if (l.size == 1) {
+                b = im;
+            } else {
+                im2col_cpu(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
+            }
+            gemm(0,0,m,n,k,1,a,k,b,n,1,c,n);
+        }
+    }
+
+    if(l.batch_normalize){
+        forward_batchnorm_layer(l, net);
+    } else {
+        add_bias(l.output, l.biases, l.batch, l.n, l.out_h*l.out_w);
+    }
+
+    activate_array(l.output, l.outputs*l.batch, l.activation);
+    if(l.binary || l.xnor) swap_binary(&l);
+}
+```
+
+<div align='center'>
+    <b>
+        code 2.4 forward_convolutional_layer 的定义。
+    </b>
+</div>
+
+
+
+
+
+## backward_xxx_layer
+
+
+
+## update_xxx_layer
 
 
 
