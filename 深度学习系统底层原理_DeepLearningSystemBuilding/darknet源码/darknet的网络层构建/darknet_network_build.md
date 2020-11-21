@@ -335,31 +335,34 @@ update_xxx_layer(); // 用以定义该层的参数更新策略
 
 ## forward_xxx_layer
 
-同样，我们以`forward_convolutional_layer`作为代表进行剖析。
+同样，我们以`forward_convolutional_layer`作为代表进行剖析，其中的`im2col_cpu`和`gemm`是作为卷积加速的一种常用方式，具体见[4]，以下为了讨论简便，假设`l.groups = 1`。
 
 ```c
 void forward_convolutional_layer(convolutional_layer l, network net)
 {
     int i, j;
-
-    fill_cpu(l.outputs*l.batch, 0, l.output, 1);
-
+    fill_cpu(l.outputs*l.batch, 0, l.output, 1); // 初始化输出变量空间的值，将其全部初始化为0
     int m = l.n/l.groups;
     int k = l.size*l.size*l.c/l.groups;
     int n = l.out_w*l.out_h;
+    // 这里group是深度可分离卷积(depthwise convolution)里面的内容
     for(i = 0; i < l.batch; ++i){
         for(j = 0; j < l.groups; ++j){
             float *a = l.weights + j*l.nweights/l.groups;
+            // 计算权值的起始指针，按照不同的group区分
             float *b = net.workspace;
             float *c = l.output + (i*l.groups + j)*n*m;
+            // 输出的对应指针偏移计算
             float *im =  net.input + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
+            // 输入对应指针偏移计算
 
             if (l.size == 1) {
-                b = im;
+                b = im; // 如果是1x1卷积，就不需要im2col
             } else {
                 im2col_cpu(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
             }
-            gemm(0,0,m,n,k,1,a,k,b,n,1,c,n);
+            // 通过im2col将卷积转换成矩阵乘法运算
+            gemm(0,0,m,n,k,1,a,k,b,n,1,c,n); // 通过GEMM计算矩阵乘法
         }
     }
 
@@ -368,9 +371,9 @@ void forward_convolutional_layer(convolutional_layer l, network net)
     } else {
         add_bias(l.output, l.biases, l.batch, l.n, l.out_h*l.out_w);
     }
-
-    activate_array(l.output, l.outputs*l.batch, l.activation);
-    if(l.binary || l.xnor) swap_binary(&l);
+    // 进行batch_norm 和 添加偏置计算
+    activate_array(l.output, l.outputs*l.batch, l.activation); // 添加激活层
+    if(l.binary || l.xnor) swap_binary(&l); // 二值化的权值，本文不考虑这个。
 }
 ```
 
@@ -379,12 +382,150 @@ void forward_convolutional_layer(convolutional_layer l, network net)
         code 2.4 forward_convolutional_layer 的定义。
     </b>
 </div>
+code 2.4中代码需要计算很多关于内存指针的偏移（因为物理内存上这些高阶张量都是线性排列的，具体高阶索引体现在特定的指针偏移上），比如#14和#16行都有`(i*l.groups + j)`这个偏移项，其实就是在考虑组别`groups`和不同批次`batch`对内存索引的影响，因为输入输出的特征图大小不同，因此后面接的系数当然也不同，分别是`*n*m`和`*l.c/l.groups*l.h*l.w`。
 
+既然是卷积层的前向计算，其中最为关键的莫过于是如何进行卷积计算，我们首先关注`im2col_cpu`这个函数：
 
+```c
+void im2col_cpu(float* data_im,
+     int channels,  int height,  int width,
+     int ksize,  int stride, int pad, float* data_col) 
+{
+    /*
+    float* data_im: 输入的特征图指针，呈现线性排列，是拉直后的结果（物理内存就是线性的）
+    int channels: 输入通道数
+    int height, int width: 输入特征图的高度和宽度
+    int ksize: 卷积核大小
+    int stride: 步进
+    int pad: 填充
+    float* data_col: 经过im2col后的结果，将其保存在workspace中，因为能确保workspace的内存预分配大小符合最大内存需求，因此不担心其溢出。
+    */
+    int c,h,w;
+    int height_col = (height + 2*pad - ksize) / stride + 1;
+    int width_col = (width + 2*pad - ksize) / stride + 1;
+    // 计算卷积核的尺寸参数
+    int channels_col = channels * ksize * ksize; // 将通道拉直后的向量维度，见[4]中的讨论
+    for (c = 0; c < channels_col; ++c) {
+        int w_offset = c % ksize;
+        int h_offset = (c / ksize) % ksize;
+        int c_im = c / ksize / ksize;
+        for (h = 0; h < height_col; ++h) {
+            for (w = 0; w < width_col; ++w) {
+                int im_row = h_offset + h * stride;
+                int im_col = w_offset + w * stride;
+                int col_index = (c * height_col + h) * width_col + w;
+                data_col[col_index] = im2col_get_pixel(data_im, height, width, channels,
+                        im_row, im_col, c_im, pad);
+            }
+        }
+    }
+    // 计算K^2C的内循环，给data_col赋值
+}
+```
 
+<div align='center'>
+    <b>
+        code 2.5 im2col_cpu的定义。
+    </b>
+</div>
+
+函数的细节太多了，我们后续博文再更新讨论细节，就宏观来看，该函数将三阶张量展开成了矩阵`data_col`。然后通过通用矩阵乘法`gemm`进行卷积核的相乘，就得到了最终的卷积特征输出。`gemm`代码如code 2.6所示，其中细节比较多，我们暂且不讨论，从`darknet`的源码来看，作者似乎并没有进行太多的矩阵乘法优化（有待后续继续验证），只是进行了`openMP`的多线程优化。`gemm`的传入参数比较多，因为通用矩阵乘法是在对式子(2.2)进行计算的
+$$
+\mathbf{C} = \alpha \mathbf{A}\mathbf{B}+\beta\mathbf{C} \\
+\mathbf{A} \in \mathbb{R}^{M \times K}, \mathbf{B} \in \mathbb{R}^{K \times N}, \mathbf{C} \in \mathbb{R}^{M \times N}
+\tag{2.2}
+$$
+
+```c
+void gemm(int TA, int TB, int M, int N, int K, float ALPHA, 
+        float *A, int lda, 
+        float *B, int ldb,
+        float BETA,
+        float *C, int ldc)
+{
+    /*
+    参考式子(2.2)这里解释下参数
+    int TA, int TB： 是否需要使用转置的传入矩阵。
+    int M, int N, int K: 传入矩阵的尺寸
+    float ALPHA: 式子(2.2)中的\alpha
+    float BETA: 式子(2.2)中的\beta
+    float *A: 传入矩阵A
+    float *B: 传入矩阵B
+    float *C: 传入矩阵C
+    int lda, int ldb, int ldc: 表示的是leading dimension，也就是第一个维度的大小，可以看成是步进大小，用于做索引的时候确定元素的位置，比如add(A[i, j])=A+i*lda+j。这个细节我们可以暂时忽略。
+    */
+    gemm_cpu( TA,  TB,  M, N, K, ALPHA,A,lda, B, ldb,BETA,C,ldc);
+}
+```
+
+<div align='center'>
+    <b>
+        code 2.6 gemm的参数表解释。
+    </b>
+</div>
 
 
 ## backward_xxx_layer
+
+
+
+```c
+void backward_convolutional_layer(convolutional_layer l, network net)
+{
+    int i, j;
+    int m = l.n/l.groups;
+    int n = l.size*l.size*l.c/l.groups;
+    int k = l.out_w*l.out_h;
+
+    gradient_array(l.output, l.outputs*l.batch, l.activation, l.delta);
+
+    if(l.batch_normalize){
+        backward_batchnorm_layer(l, net);
+    } else {
+        backward_bias(l.bias_updates, l.delta, l.batch, l.n, k);
+    }
+
+    for(i = 0; i < l.batch; ++i){
+        for(j = 0; j < l.groups; ++j){
+            float *a = l.delta + (i*l.groups + j)*m*k;
+            float *b = net.workspace;
+            float *c = l.weight_updates + j*l.nweights/l.groups;
+
+            float *im  = net.input + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
+            float *imd = net.delta + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
+
+            if(l.size == 1){
+                b = im;
+            } else {
+                im2col_cpu(im, l.c/l.groups, l.h, l.w, 
+                        l.size, l.stride, l.pad, b);
+            }
+
+            gemm(0,1,m,n,k,1,a,k,b,k,1,c,n);
+
+            if (net.delta) {
+                a = l.weights + j*l.nweights/l.groups;
+                b = l.delta + (i*l.groups + j)*m*k;
+                c = net.workspace;
+                if (l.size == 1) {
+                    c = imd;
+                }
+
+                gemm(1,0,n,k,m,1,a,n,b,k,0,c,k);
+
+                if (l.size != 1) {
+                    col2im_cpu(net.workspace, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, imd);
+                }
+            }
+        }
+    }
+}
+
+```
+
+
+
+
 
 
 
@@ -393,6 +534,28 @@ void forward_convolutional_layer(convolutional_layer l, network net)
 
 
 
+
+```c
+void update_convolutional_layer(convolutional_layer l, update_args a)
+{
+    float learning_rate = a.learning_rate*l.learning_rate_scale;
+    float momentum = a.momentum;
+    float decay = a.decay;
+    int batch = a.batch;
+
+    axpy_cpu(l.n, learning_rate/batch, l.bias_updates, 1, l.biases, 1);
+    scal_cpu(l.n, momentum, l.bias_updates, 1);
+
+    if(l.scales){
+        axpy_cpu(l.n, learning_rate/batch, l.scale_updates, 1, l.scales, 1);
+        scal_cpu(l.n, momentum, l.scale_updates, 1);
+    }
+
+    axpy_cpu(l.nweights, -decay*batch, l.weights, 1, l.weight_updates, 1);
+    axpy_cpu(l.nweights, learning_rate/batch, l.weight_updates, 1, l.weights, 1);
+    scal_cpu(l.nweights, momentum, l.weight_updates, 1);
+}
+```
 
 
 
@@ -425,6 +588,8 @@ void forward_convolutional_layer(convolutional_layer l, network net)
 [2]. [[darknet源码系列-2] darknet源码中的cfg解析](https://fesian.blog.csdn.net/article/details/109863764)
 
 [3]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/src/parser.c#L747
+
+[4]. [[卷积算子加速] im2col优化](https://fesian.blog.csdn.net/article/details/109906065)
 
 
 
