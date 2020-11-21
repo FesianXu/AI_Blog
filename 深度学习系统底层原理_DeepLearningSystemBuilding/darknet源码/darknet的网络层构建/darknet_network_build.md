@@ -1,16 +1,17 @@
 <div align='center'>
-    [darknet源码系列-2] darknet源码中的cfg解析
+    [darknet源码系列-3] 在darknet中，如何根据解析出来的配置进行网络层构建
 </div>
 
 
 
 <div align='right'>
-    FesianXu 20201118 at UESTC
+    FesianXu 20201120 at UESTC
 </div>
+
 
 # 前言
 
-笔者在[1]一文中简单介绍了在`darknet`中常见的数据结构，本文继续上文的节奏，介绍如何从`cfg`文本文件中解析出整个网络的结构与参数。**如有谬误请联系指出，本文遵守[ CC 4.0 BY-SA ](http://creativecommons.org/licenses/by-sa/4.0/)版权协议，转载请联系作者并注明出处，谢谢**。
+笔者在[1,2]中已经对`darknet`如何进行配置解析进行了讲解，现在我们需要将解析出来的配置进行对应的网络层构建。**如有谬误请联系指出，本文遵守[ CC 4.0 BY-SA ](http://creativecommons.org/licenses/by-sa/4.0/)版权协议，转载请联系作者并注明出处，谢谢**。
 
 $\nabla$ 联系方式：
 
@@ -28,21 +29,12 @@ $\nabla$ 联系方式：
 
 -----
 
-**注意：阅读本文之前，建议阅读[1]，以便对`darknet`的数据结构定义有所了解。** 为了简便，本文暂时不考虑GPU下的运行，只考虑CPU运行的情况。
+在阅读本文之前，请确保已经阅读过以下系列文章，否则可能会有前置知识点的缺失：
 
-# 初探
+1. [[darknet源码系列-1] darknet源码中的常见数据结构](https://fesian.blog.csdn.net/article/details/109779812)
+2. [[darknet源码系列-2] darknet源码中的cfg解析](https://fesian.blog.csdn.net/article/details/109863764)
 
-最主要的网络结构和参数解析函数在`/src/parser.c`里，该函数名为`network *parse_network_cfg`[2]，此函数完成了`cfg`文件的解析，并且通过解析得到的网络结构与参数初始化`network`结构体，以便于后续的网络计算。我们从该函数开始进行剖析，部分代码见coda 1.1，传入参数很简单，就是`cfg`文件的名字`char* filename`，而返回的就是解析并初始化后的`network*`。为了让读者回顾`darknet`的基本数据结构，我们展示Fig 1.1，该链表承载了作为解析过程中的主要数据负载作用。具体的函数分析见code 1.1的注释。
-
-![section_linked_list][section_linked_list]
-
-<div align='center'>
-    <b>
-        Fig 1.1 该双向链表承载了网络配置解析过程中的主要内容负载作用，此时注意到无论是front还是back，其终端都是NULL，这点需要去看函数list_insert[3]。
-    </b>
-</div>
-
-
+本文接着以上的文章，继续讨论如何根据解析出来的网络配置去构建网络结构`network`。为了讨论一致性，此处需要贴出[2]中的code 1.1，后续需要参考这段代码进行讨论。
 
 ```c
 network *parse_network_cfg(char *filename)
@@ -146,239 +138,225 @@ network *parse_network_cfg(char *filename)
 
 <div align='center'>
     <b>
-        code 1.1 parse_network_cfg的函数定义，注意到为了显示简便，省略了许多重复类似的语句，读者可以查阅源代码或者根据上下文得知含义。
+        code a1. parse_network_cfg的函数定义，注意到为了显示简便，省略了许多重复类似的语句，读者可以查阅源代码或者根据上下文得知含义。
     </b>
 </div>
 
-整个`parse_network_cfg`的全景就如code 1.1所示，其中涉及到了一个临时的中间数据结构`size_params`，我们之前没有谈到，该结构定义如code 1.2所示。我们如果认真分析整个过程，发现其实这个函数分为两大阶段：解析，网络初始化。因此后续的章节也按照这两个部分分别剖析。
+
+
+# make_network
+
+`make_network`处在code a1中#6行[3]，是用来初始化一个`network`结构体的。代码很简单，如code 1.1所示
 
 ```c
-typedef struct size_params{
-    int batch;
-    int inputs;
-    int h;
-    int w;
-    int c;
-    int index;
-    int time_steps;
-    network *net;
-} size_params;
+network *make_network(int n)
+{
+    network *net = calloc(1, sizeof(network));
+    net->n = n; // 一共有多少网络层，不包括[net]或者[network]字段的section
+    net->layers = calloc(net->n, sizeof(layer)); // 对所有层进行内存分配
+    net->seen = calloc(1, sizeof(size_t));  
+    net->t    = calloc(1, sizeof(int)); 
+    net->cost = calloc(1, sizeof(float)); 
+    return net;
+}
 ```
 
 <div align='center'>
     <b>
-        code 1.2 该数据结构是临时数据结构，用以储存解析-定义网络过程中的数据。
+        code 1.1 make_network的定义，其中主要是对若干元素进行内存分配，注意到net->n是不包括[net]或者[network]字段的。
     </b>
 </div>
 
-# cfg解析
+正如在[1]中谈到的，`layer`结构体内包含了所有神经网络层（卷积层，转置卷积层，激活层等等）的所有相关参数，因此可以看成是一个超大的数据结构，因此只需要初始化该数据就足够了。当然，这样设计出来的数据结构过于冗余，这又是后话了。
 
-与`cfg`解析有关的函数有很多，主要的是
 
-1. `list* read_cfg(char* filename)`：用于解析主要的section列表等，见Fig 1.1。
-2. `void parse_net_options(list *options, network *net)`：该函数用于解析`[net]`中的每个键值对。
-3. `layer parse_xxxxx(list *options, size_params params)`：该类型函数用于解析每个特定的神经网络层的参数，比如`convolutional_layer parse_convolutional(list *options, size_params params)`，本文会以这个函数作为例子进行剖析。
 
-## read_cfg
+# make_convolutional_layer
 
-`read_cfg`输入`cfg`文件名，输出网络配置解析列表，如Fig 1.1。`read_cfg`的具体注释见code 2.1。
+`make_convolutional_layer`在`parse_convolutional`中作为函数被调用，该函数用于构建卷积层，代码如code 2.1，同样为了简便起见，去掉了所有和`CUDA`和`CUDNN`相关的代码段，假设代码只运行在CPU上。
 
 ```c
-list *read_cfg(char *filename)
+convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int groups, int size, int stride, int padding, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam)
 {
-    FILE *file = fopen(filename, "r"); // 读文件
-    if(file == 0) file_error(filename); // 判空
-    char *line; // 每一行的指针，记得用完要释放内存
-    int nu = 0; // 行数计数器
-    list *options = make_list(); // 新建一个双向链表，这个链表是主链，用于储存section，该结构定义见[1]
-    section *current = 0; // 每一个section的指针
-    while((line=fgetl(file)) != 0){ // 读取每一行的数据，如果为0表示读完了
-        ++ nu; // 行计数器加一
-        strip(line); // 去除头尾的空格
-        switch(line[0]){ 
-         	// 如果每一行的第一个字符是'['，那么确定是标志了新的section的开始。
-            case '[':
-                // 因此需要对新的section进行内存分配
-                current = malloc(sizeof(section));
-                list_insert(options, current); // 将新的section插入options链表
-                current->options = make_list(); // 新建链表，该链表是用于储存键值对的。
-                current->type = line; // [xxxx] 表示了该层的类型，将其存入type，比如[convolutional]
-                break;
-            case '\0': // 忽略新行
-            case '#': // 忽略注释
-            case ';':
-                // 这些无关的标志位，可以开始释放line内存了
-                free(line);
-                break;
-            default:
-                // 如果都不是，那么意味着是开始section的真实内容负载了，开始解析，并且将解析出的键值对放置到section中。
-                if(!read_option(line, current->options)){
-                    fprintf(stderr, "Config file error line %d, could parse: %s\n", nu, line);
-                    free(line);
-                }
-                break;
+    int i;
+    convolutional_layer l = {0};
+    l.type = CONVOLUTIONAL;
+
+    l.groups = groups;
+    l.h = h;
+    l.w = w;
+    l.c = c;
+    l.n = n; // 滤波器的数量
+    l.binary = binary;
+    l.xnor = xnor;
+    l.batch = batch;
+    l.stride = stride;
+    l.size = size;
+    l.pad = padding;
+    l.batch_normalize = batch_normalize;
+    // 卷积层的一系列超参数赋值
+
+    l.weights = calloc(c/groups*n*size*size, sizeof(float));
+    l.weight_updates = calloc(c/groups*n*size*size, sizeof(float));
+    // 对权值参数进行内存空间分配
+
+    l.biases = calloc(n, sizeof(float));
+    l.bias_updates = calloc(n, sizeof(float));
+    // 对偏置参数进行内存空间分配
+
+    l.nweights = c/groups*n*size*size;
+    l.nbiases = n;
+    // 权值参数和偏置参数的参数量大小
+
+    float scale = sqrt(2./(size*size*c/l.groups));    
+    for(i = 0; i < l.nweights; ++i) l.weights[i] = scale*rand_normal();
+    // 权值参数随机初始化
+    int out_w = convolutional_out_width(l);
+    int out_h = convolutional_out_height(l);
+    // 确定卷积输出尺寸大小，具体见公式见(2.1)和code 2.2
+    l.out_h = out_h;
+    l.out_w = out_w;
+    l.out_c = n;  // 滤波器的数量，相当于输出通道数`channel_out`
+    l.outputs = l.out_h * l.out_w * l.out_c; // 输出特征图的总维度
+    l.inputs = l.w * l.h * l.c; // 输入特征图的总维度
+
+    l.output = calloc(l.batch*l.outputs, sizeof(float)); // 对一个批次的输出特征图进行内存分配
+    l.delta  = calloc(l.batch*l.outputs, sizeof(float)); // 对一个批次的更新中间量（见[1]）进行内存分配，每个特征输出都对应一个，因此和l.outputs的维度一致。
+
+    l.forward = forward_convolutional_layer;
+    l.backward = backward_convolutional_layer;
+    l.update = update_convolutional_layer;
+    // 注册前向，反向和更新回调函数。
+	
+    if(batch_normalize){
+        l.scales = calloc(n, sizeof(float));
+        l.scale_updates = calloc(n, sizeof(float));
+        for(i = 0; i < n; ++i){
+            l.scales[i] = 1;
         }
-    }
-    fclose(file); // 关闭文件
-    return options;
+
+        l.mean = calloc(n, sizeof(float));
+        l.variance = calloc(n, sizeof(float));
+
+        l.mean_delta = calloc(n, sizeof(float));
+        l.variance_delta = calloc(n, sizeof(float));
+
+        l.rolling_mean = calloc(n, sizeof(float));
+        l.rolling_variance = calloc(n, sizeof(float));
+        l.x = calloc(l.batch*l.outputs, sizeof(float));
+        l.x_norm = calloc(l.batch*l.outputs, sizeof(float));
+    } // batch_norm 相关定义
+    if(adam){
+        l.m = calloc(l.nweights, sizeof(float));
+        l.v = calloc(l.nweights, sizeof(float));
+        l.bias_m = calloc(n, sizeof(float));
+        l.scale_m = calloc(n, sizeof(float));
+        l.bias_v = calloc(n, sizeof(float));
+        l.scale_v = calloc(n, sizeof(float));
+    } // adam相关定义
+    l.workspace_size = get_workspace_size(l); // 获取该层的workspace大小，见code 2.3
+    l.activation = activation;
+
+    fprintf(stderr, "conv  %5d %2d x%2d /%2d  %4d x%4d x%4d   ->  %4d x%4d x%4d  %5.3f BFLOPs\n", n, size, size, stride, w, h, c, l.out_w, l.out_h, l.out_c, (2.0 * l.n * l.size*l.size*l.c/l.groups * l.out_h*l.out_w)/1000000000.); // 自说明输出
+    return l;
 }
 ```
 
 <div align='center'>
     <b>
-        code 2.1 read_cfg函数注释，其是解析cfg文件的主要函数。
+        code 2.1 make_convolutional_layer的定义，其他类似层的定义也是相似的，函数名都为`make_xxx_layer`。
     </b>
 </div>
 
-该函数中有一个最为关键的调用函数，就是`int read_option(char *s, list *options)`，该函数用于解析每一个section内的键值对（注意到此时仍然只是字符串），具体定义见code 2.2的详细注释。通过`read_cfg()`函数，我们将配置解析到了链表中，之后就可以关闭`cfg`文件，直接读取链表进行网络初始化即可，这样不仅提高了效率，而且减少了因为读取网络过程中，意外修改配置文件导致错误出现的可能性。
+其中的`convolutional_layer`其实和`layer`是一致的，原因之前说过了，`layer`是一个冗余的超类。
 
 ```c
-int read_option(char *s, list *options)
-{
-    size_t i;
-    size_t len = strlen(s);
-    char *val = 0; // 键值对中的数值
-    for(i = 0; i < len; ++i){ 
-        if(s[i] == '='){ // 以'='作为截断的标志，中间不能出现空格
-            s[i] = '\0'; // 截断key-val，将'='替换成截断位，也即是'\0'。
-            val = s+i+1; // 将val指向值的地址位置，因为已经做过了截断，因此需要+1
-            break;
-        }
-    }
-    if(i == len-1) return 0;
-    char *key = s; // 显然之前的一段是键值，因为加了'\0'作为截断，因此现在key和val都是提取出来了
-    option_insert(options, key, val); // 添加到section链表中,见code 2.3
-    return 1;
-}
+typedef layer convolutional_layer;
 ```
 
-<div align='center'>
-    <b>
-        code 2.2 read_option用以解析键值对，并且将其添加到指定的section链表中。
-    </b>
-</div>
+代码中需要根据`pad`和`width/height`，`kernel_size`，`stride`去确定卷积输出的尺寸大小，计算方式见公式(2.1)和code 2.2。
+$$
+\begin{aligned}
+\mathrm{out\_w} &= \dfrac{w+2\times\mathrm{pad}-\mathrm{kernel\_size}}{\mathrm{stride}}+1 \\
+\mathrm{out\_h} &= \dfrac{h+2\times\mathrm{pad}-\mathrm{kernel\_size}}{\mathrm{stride}}+1
+\end{aligned}
+\tag{2.1}
+$$
 
 ```c
-void option_insert(list *l, char *key, char *val)
+int convolutional_out_height(convolutional_layer l)
 {
-    kvp *p = malloc(sizeof(kvp));
-    p->key = key;
-    p->val = val;
-    p->used = 0;
-    list_insert(l, p);
+    return (l.h + 2*l.pad - l.size) / l.stride + 1;
+}
+
+int convolutional_out_width(convolutional_layer l)
+{
+    return (l.w + 2*l.pad - l.size) / l.stride + 1;
 }
 ```
 
 <div align='center'>
     <b>
-        code 2.3 option_insert将键值对添加到section链表中。
+        code 2.2 计算卷积的输出尺寸大小。
     </b>
 </div>
 
 
-
-## parse_net_options
-
-这个函数负责解析`[net]`部分的参数，这类型的参数和一般的section不同，其是全局的网络配置，因此独立成了一个函数。其没有太难理解的东西，基本上就是调用一系列字符串解析函数，这系列的函数会去读取之前解析到的参数链表，将其中section中的键值对解析出特定的数据类型（比如`int`,`float`），因此对应有很多类似的函数，比如：
-
-1.  `int option_find_int(list *l, char *key, int def)`
-2. `float option_find_float(list *l, char *key, float def)`
-3. `char *option_find_str(list *l, char *key, char *def)`
 
 ```c
-void parse_net_options(list *options, network *net)
-{
-    net->batch = option_find_int(options, "batch",1);
-    net->learning_rate = option_find_float(options, "learning_rate", .001);
-    net->momentum = option_find_float(options, "momentum", .9);
-    net->decay = option_find_float(options, "decay", .0001);
-    int subdivs = option_find_int(options, "subdivisions",1);
-    net->time_steps = option_find_int_quiet(options, "time_steps",1);
-    net->notruth = option_find_int_quiet(options, "notruth",0);
-    net->batch /= subdivs;
-    net->batch *= net->time_steps;
-    net->subdivisions = subdivs;
-    net->random = option_find_int_quiet(options, "random", 0);
-
-    net->adam = option_find_int_quiet(options, "adam", 0);
-    if(net->adam){
-        net->B1 = option_find_float(options, "B1", .9);
-        net->B2 = option_find_float(options, "B2", .999);
-        net->eps = option_find_float(options, "eps", .0000001);
-    }
-    ... 
-    // 省略了类似参数的解析过程
+static size_t get_workspace_size(layer l){
+    return (size_t)l.out_h*l.out_w*l.size*l.size*l.c/l.groups*sizeof(float);
 }
 ```
 
 <div align='center'>
     <b>
-        code 2.4 parse_net_options将`[net]`中的全局参数进行解析，并且放置到`net`数据结构中。
+        code 2.3 get_workspace_size 该函数计算给定的layer的内存需求，省略了关于CUDNN部分的代码。
     </b>
 </div>
 
-## parse_xxx
+代码中的`self.`
 
-该类型的函数用于解析某个特定的层，比如`convolutional`卷积层，`deconvolutional`转置卷积层，`activation`激活层等等，其中的`xxx`表明了层的种类，如果想要定制某个新的层，需要进行类似的注册（也即是需要书写自己的`parse_new_layer()`函数等）。本文以`parse_convolutional()`作为例子进行讲解。从code 2.5中可以发现，其中最主要的函数是`make_convolutional_layer()`，用以通过解析得到的卷积层参数去构造卷积层。
 
-```c
-convolutional_layer parse_convolutional(list *options, size_params params)
-{
-    int n = option_find_int(options, "filters",1);
-    int size = option_find_int(options, "size",1);
-    int stride = option_find_int(options, "stride",1);
-    int pad = option_find_int_quiet(options, "pad",0);
-    int padding = option_find_int_quiet(options, "padding",0);
-    int groups = option_find_int_quiet(options, "groups", 1);
-    // 解析和卷积层相关的参数，比如滤波器通道数，大小，步进，填充等
-    if(pad) padding = size/2;
 
-    char *activation_s = option_find_str(options, "activation", "logistic"); 
-    ACTIVATION activation = get_activation(activation_s); // 得到指定的激活层，枚举类型
 
-    int batch,h,w,c;
-    h = params.h;
-    w = params.w;
-    c = params.c; // 数据集图片的基本参数，包括长宽，通道数
-    batch = params.batch; // 批次大小
-    if(!(h && w && c)) error("Layer before convolutional layer must output image.");
-    int batch_normalize = option_find_int_quiet(options, "batch_normalize", 0);
-    int binary = option_find_int_quiet(options, "binary", 0);
-    int xnor = option_find_int_quiet(options, "xnor", 0);
 
-    convolutional_layer layer = make_convolutional_layer(batch,h,w,c,n,groups,size,stride,padding,activation, batch_normalize, binary, xnor, params.net->adam); // 构造卷积层
-    layer.flipped = option_find_int_quiet(options, "flipped", 0);
-    layer.dot = option_find_float_quiet(options, "dot", 0);
 
-    return layer;
-}
-```
 
-<div align='center'>
-    <b>
-        code 2.5 parse_convolutional的函数注解，其中最主要的函数是make_convolutional_layer，用以通过解析得到的卷积层参数去构造卷积层。
-    </b>
-</div>
 
-每个特定的神经网络层都有其特定的`make_xxx_layer()`函数，用以将解析得到的参数构造出特定的层。这个内容我们留到下一篇博文进行剖析，至此我们已经完全将`cfg`文件进行了解析。
 
-# 该系列其他文章
 
-1. [[darknet源码系列-1] darknet源码中的常见数据结构](https://fesian.blog.csdn.net/article/details/109779812)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Reference
 
 [1]. [[darknet源码系列-1] darknet源码中的常见数据结构](https://fesian.blog.csdn.net/article/details/109779812)
 
-[2]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/src/parser.c#L742
+[2]. [[darknet源码系列-2] darknet源码中的cfg解析](https://fesian.blog.csdn.net/article/details/109863764)
 
-[3]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/src/list.c#L40
+[3]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/src/parser.c#L747
+
+
+
+
 
 
 
 [qrcode]: ./imgs/qrcode.jpg
-
-[section_linked_list]: ./imgs/section_linked_list.png
-
-
-
