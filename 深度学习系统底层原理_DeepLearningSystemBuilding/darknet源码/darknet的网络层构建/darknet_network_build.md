@@ -335,7 +335,15 @@ update_xxx_layer(); // 用以定义该层的参数更新策略
 
 ## forward_xxx_layer
 
-同样，我们以`forward_convolutional_layer`作为代表进行剖析，其中的`im2col_cpu`和`gemm`是作为卷积加速的一种常用方式，具体见[4]，以下为了讨论简便，假设`l.groups = 1`。
+同样，我们以`forward_convolutional_layer`作为代表进行剖析，整个流程图如Fig 2.1所示，其中的`im2col_cpu`和`gemm`是作为卷积加速的一种常用方式，具体见[4]，以下为了讨论简便，假设`l.groups = 1`。
+
+![conv_forward][conv_forward]
+
+<div align='center'>
+    <b>
+        Fig 2.1 卷积层模组需要经过的若干个模块，包括卷积，偏置，BN和激活层等。
+    </b>
+</div>
 
 ```c
 void forward_convolutional_layer(convolutional_layer l, network net)
@@ -463,11 +471,19 @@ void gemm(int TA, int TB, int M, int N, int K, float ALPHA,
         code 2.6 gemm的参数表解释。
     </b>
 </div>
-
+结合`im2col`和`gemm`，我们完成了卷积的前向计算。
 
 ## backward_xxx_layer
 
-
+梯度的反向传播计算的方向和前向计算相反，如Fig 2.1所示，将其反过来看得话，需要先求得激活层的梯度`gradient_array()`。笔者在之前的文章[5]中曾经简要介绍过卷积层的反向梯度传播，对于某个第$n$输入通道，第$m$输出通道，位置为$(p,q)$的权值参数$w[n,m,p,q]$，我们有其导数为：
+$$
+\begin{aligned}
+\dfrac{\partial E}{\partial w[n,m,p,q]} &= \dfrac{\partial E}{\partial y_L} \cdot \dfrac{\partial  y_L}{\partial w[n,m,p,q]} \\
+\dfrac{\partial  y_L}{\partial w[n,m,p,q]} &= \sum_{x,y} y_{L-1}[m,x+p,y+q]
+\end{aligned}
+\tag{2.3}
+$$
+总的来说，要考虑激活层的梯度$\dfrac{\partial E}{\partial y_L}$，和卷积本身的梯度，然后将其相乘。具体代码解释见code 2.7的注释所示。
 
 ```c
 void backward_convolutional_layer(convolutional_layer l, network net)
@@ -478,31 +494,37 @@ void backward_convolutional_layer(convolutional_layer l, network net)
     int k = l.out_w*l.out_h;
 
     gradient_array(l.output, l.outputs*l.batch, l.activation, l.delta);
+    // 实现逐个参数的【激活层】的梯度计算以及累加，其中的l.delta可以实现训练过程中的梯度累加，也即是所谓的敏感度图sensitive map，见code 2.8，因为是反向传播因此由最底层的激活层开始计算
+    // 梯度累积通过l.delta进行传递
 
     if(l.batch_normalize){
         backward_batchnorm_layer(l, net);
     } else {
         backward_bias(l.bias_updates, l.delta, l.batch, l.n, k);
     }
+    // 判断是否有bn层，进一步计算batch_norm的梯度或者bias的梯度，backward_batchnorm_layer内部包含了bias梯度反传
 
     for(i = 0; i < l.batch; ++i){
         for(j = 0; j < l.groups; ++j){
             float *a = l.delta + (i*l.groups + j)*m*k;
             float *b = net.workspace;
             float *c = l.weight_updates + j*l.nweights/l.groups;
-
+			
             float *im  = net.input + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
             float *imd = net.delta + (i*l.groups + j)*l.c/l.groups*l.h*l.w;
+            // 类似于前向传播，但是此时要考虑敏感性图(l.delta)变量了，因为需要累积梯度
 
             if(l.size == 1){
                 b = im;
             } else {
                 im2col_cpu(im, l.c/l.groups, l.h, l.w, 
                         l.size, l.stride, l.pad, b);
-            }
+            } // 如果是1x1卷积，则不需要im2col，如果不是，通过im2col将im转换为col形式的矩阵b。b此时是workspace。im是上一层的输出，即是本层的输入。
 
             gemm(0,1,m,n,k,1,a,k,b,k,1,c,n);
-
+            // 见公式(2.4)，此处进行权值更新，激活层梯度是a，基础量是c，b是梯度
+			
+            // 此处进行workspace的更新，保存当前梯度累积结果，以便于后续网络的训练。
             if (net.delta) {
                 a = l.weights + j*l.nweights/l.groups;
                 b = l.delta + (i*l.groups + j)*m*k;
@@ -515,7 +537,7 @@ void backward_convolutional_layer(convolutional_layer l, network net)
 
                 if (l.size != 1) {
                     col2im_cpu(net.workspace, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, imd);
-                }
+                } // 如果不是1x1卷积，那么通过col2im将其转换为张量结构。
             }
         }
     }
@@ -523,73 +545,132 @@ void backward_convolutional_layer(convolutional_layer l, network net)
 
 ```
 
+<div align='center'>
+    <b>
+        code 2.7 backward_convolutional_layer 卷积层的反向梯度传播计算。
+    </b>
+</div>
+更新参数的增量的公式如(2.4)所示，注意到此时还没有进行参数更新，只是进行参数更新量的计算而已，后续还需要考虑学习率进行衰减。其中的$\mathbf{A}$是激活层梯度，$\mathbf{B}$是卷积层梯度，$\mathbf{C}$是积累到当前层的参数更新量。
+
+$$
+\mathbf{C} = \mathbf{A}\mathbf{B}^{\mathrm{T}}+\mathbf{C}
+\tag{2.4}
+$$
+
+code 2.8是计算激活层梯度的过程。
 
 
+```c
+void gradient_array(const float *x, const int n, const ACTIVATION a, float *delta)
+{
+    int i;
+    for(i = 0; i < n; ++i){
+        delta[i] *= gradient(x[i], a); // 计算激活层的梯度，并进行累积
+    }
+} 
 
+float gradient(float x, ACTIVATION a)
+{
+    switch(a){
+        case LINEAR:
+            return linear_gradient(x);
+        case LOGISTIC:
+            return logistic_gradient(x);
+		... // 省略了其他类似激活层的梯度
+        case LHTAN:
+            return lhtan_gradient(x);
+    }
+    return 0;
+}
+```
 
-
-
+<div align='center'>
+    <b>
+        code 2.8 gradient_array 的定义，其中查阅gradient可以得到某个特定激活层的梯度（比如relu,linear,sigmoid等）。
+    </b>
+</div>
 ## update_xxx_layer
 
-
-
-
+在`backward_xxx_layer`层只计算了反向传播过程中的基于梯度考虑的参数更新量，后续在真正的参数更新过程中，还需要结合优化器的学习策略进行参数更新量的调整，这些都定义在了`update_xxx_layer`函数中，如code 2.9所示。
 
 ```c
 void update_convolutional_layer(convolutional_layer l, update_args a)
 {
-    float learning_rate = a.learning_rate*l.learning_rate_scale;
-    float momentum = a.momentum;
-    float decay = a.decay;
+    float learning_rate = a.learning_rate*l.learning_rate_scale; // 真实的学习率需要考虑衰减
+    float momentum = a.momentum; // SGD的动量
+    float decay = a.decay; 
     int batch = a.batch;
 
     axpy_cpu(l.n, learning_rate/batch, l.bias_updates, 1, l.biases, 1);
     scal_cpu(l.n, momentum, l.bias_updates, 1);
+    // 考虑bias的更新
 
     if(l.scales){
         axpy_cpu(l.n, learning_rate/batch, l.scale_updates, 1, l.scales, 1);
         scal_cpu(l.n, momentum, l.scale_updates, 1);
     }
+    // 考虑scale的更新以及动量的更新
 
     axpy_cpu(l.nweights, -decay*batch, l.weights, 1, l.weight_updates, 1);
     axpy_cpu(l.nweights, learning_rate/batch, l.weight_updates, 1, l.weights, 1);
     scal_cpu(l.nweights, momentum, l.weight_updates, 1);
+    // 考虑weights的更新
+}
+void axpy_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY)
+{
+    int i;
+    for(i = 0; i < N; ++i) Y[i*INCY] += ALPHA*X[i*INCX];
+}
+
+void scal_cpu(int N, float ALPHA, float *X, int INCX)
+{
+    int i;
+    for(i = 0; i < N; ++i) X[i*INCX] *= ALPHA;
 }
 ```
 
+<div align='center'>
+    <b>
+        code 2.9 更新参数值的过程，需要结合具体的优化器更新策略。
+    </b>
+</div>
 
+注意：其中`axpy_cpu`和`scal_cpu`都是BLAS中的命名方式，表示向量化数值运算，其中`axpy_cpu`表示`a x plus y`，也就是$\mathbf{y} \leftarrow \alpha \mathbf{x} + \mathbf{y}$，而`scal_cpu`则是`scale`，即是$\mathbf{y} \leftarrow \alpha \mathbf{x}$。
 
+从中可发现，对于`biases`的更新策略是：
+$$
+\begin{aligned}
+\mathrm{biased} &= \mathrm{biased} + \dfrac{\lambda}{N} \times \Delta \mathrm{biases} \\
+\Delta \mathrm{biases} &= \mathrm{m} \times \Delta \mathrm{biases}
+\end{aligned}
+\tag{2.5}
+$$
 
+其中的$\lambda$是真实学习率`learning_rate`，$N$是批次大小`batch size`，$\Delta \mathrm{biases}$是`bias_updates`量，$m$是动量`momentum`。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+对于`weights`的更新策略是：
+$$
+\begin{aligned}
+\Delta \mathrm{weights} &= \Delta \mathrm{weights} - d \times N \times \mathrm{weights} \\
+\mathrm{weights} &= \mathrm{weights} + \dfrac{\lambda}{N} \times \Delta \mathrm{weights} \\
+\Delta \mathrm{weights} &= \mathrm{m} \times \Delta \mathrm{weights}
+\end{aligned}
+\tag{2.6}
+$$
+符号表示的含义也是类似的，其中$d$是衰减量`decay`。
 
 # Reference
 
-[1]. [[darknet源码系列-1] darknet源码中的常见数据结构](https://fesian.blog.csdn.net/article/details/109779812)
+[1]. [[darknet源码系列-1] darknet源码中的常见数据结构](https://fesian.blog.csdn.net/article/details/109779812) : https://fesian.blog.csdn.net/article/details/109779812
 
-[2]. [[darknet源码系列-2] darknet源码中的cfg解析](https://fesian.blog.csdn.net/article/details/109863764)
+[2]. [[darknet源码系列-2] darknet源码中的cfg解析](https://fesian.blog.csdn.net/article/details/109863764) : https://fesian.blog.csdn.net/article/details/109863764
 
 [3]. https://github.com/pjreddie/darknet/blob/4a03d405982aa1e1e911eac42b0ffce29cc8c8ef/src/parser.c#L747
 
-[4]. [[卷积算子加速] im2col优化](https://fesian.blog.csdn.net/article/details/109906065)
+[4]. [[卷积算子加速] im2col优化](https://fesian.blog.csdn.net/article/details/109906065): https://fesian.blog.csdn.net/article/details/109906065
+
+[5]. https://zhuanlan.zhihu.com/p/158736917
+
 
 
 
@@ -598,3 +679,8 @@ void update_convolutional_layer(convolutional_layer l, update_args a)
 
 
 [qrcode]: ./imgs/qrcode.jpg
+
+[conv_forward]: ./imgs/conv_forward.png
+
+
+
