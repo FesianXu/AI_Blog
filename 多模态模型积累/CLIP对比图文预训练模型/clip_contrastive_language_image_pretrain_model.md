@@ -139,13 +139,27 @@ CLIP的模型结构和正负样本组成策略并不复杂，其负样本构成�
 
 
 
+![zero_shot_vs_linear_probe_resnet50][zero_shot_vs_linear_probe_resnet50]
 
 
 
+
+
+
+
+![zero_shot_labeld_example_per_class][zero_shot_labeld_example_per_class]
+
+
+
+
+
+
+
+![natural_distribution_shift][natural_distribution_shift]
 
 # 笔者的个人启示
 
-
+基于双塔结构的CLIP模型在数据量足够的情况下，即便在预训练情况下都可以实现
 
 
 
@@ -180,6 +194,9 @@ CLIP的模型结构和正负样本组成策略并不复杂，其负样本构成�
 [clip_training_model]: ./imgs/clip_training_model.png
 [zero_shot_frame]: ./imgs/zero_shot_frame.png
 [prompt_engineering_ensemble]: ./imgs/prompt_engineering_ensemble.png
+[zero_shot_vs_linear_probe_resnet50]: ./imgs/zero_shot_vs_linear_probe_resnet50.png
+[zero_shot_labeld_example_per_class]: ./imgs/zero_shot_labeld_example_per_class.png
+[natural_distribution_shift]: ./imgs/natural_distribution_shift.png
 
 
 
