@@ -134,42 +134,32 @@ CLIP的模型结构和正负样本组成策略并不复杂，其负样本构成�
         Fig 2.3 采用了prompt engineering和ensemble之后，可以在zero-shot指标上提高5个绝对百分位。这个说明了通过指示上下文，提供标签的上下文信息可以有效地提高zero-shot效果。
     </b>
 </div>
-
-
-
+在zero-shot这块，作者也做了充足的实验。首先作者通过和经过强监督学习的Resnet-50提取的特征对比，任务都是分类任务，因此作者基于Resnet-50和CLIP提取出的特征，只是训练了最后的分类器，分类结果如Fig 2.4所示。可以发现仅仅通过无监督的对比学习预训练得到的特征，即便是和强监督模型特征相比也是不分伯仲的。同时可以发现，zero-shot CLIP在一些动作识别任务中，比如Kinetics 700，UCF 101中有着比较大的提高，作者认为这可能是因为目前的文本描述中有很多以动词，动作为中心的句子导致的。
 
 
 ![zero_shot_vs_linear_probe_resnet50][zero_shot_vs_linear_probe_resnet50]
 
+<div align='center'>
+    <b>
+        Fig 2.4 CLIP的zero-shot性能，与Resnet-50的特征进行对比。
+    </b>
+</div>
 
-
-
-
-
+作者同样将CLIP应用在了few-shot中，如Fig 2.5所示，横坐标是few-shot中的X-ways，指的是用多少有标注的样本进行Linear Probe的分类器训练（这个过程中仅仅采用了预训练模型的特征，而线性分类器需要重新训练）。从图中可以发现zero-shot CLIP大概相当于 4-ways few-shot CLIP的结果，而显然的，Linear Probe CLIP比其他few-shot基线模型有着更为优秀而稳定的表现，领先了有10多个绝对百分点。这个实验同时也揭露了zero-shot和few-shot的区别，在监督学习中模型需要基于标签学习出相同类别样本的共同特征，不同类样本的差别，因此通常都需要更多的标注数据才能达到较理想的效果。如果没有太多的标注数据提供类别的上下文信息，那么性能可能比zero-shot还差。而且，从预训练中学习到的概念可能是很通用的，比如一张图中可能有很多视觉实体，如果不提供一定的标注去声明任务需要注意的视觉实体，那么就无法完成任务。而zero-shot由于是直接学习概念，并且和概念进行对比，似乎就不会存在这个问题。
 
 ![zero_shot_labeld_example_per_class][zero_shot_labeld_example_per_class]
 
+<div align='center'>
+    <b>
+        Fig 2.5 few-shot CLIP与其他few-shot基线模型的对别。
+    </b>
+</div>
 
 
-
-
-
-
-![natural_distribution_shift][natural_distribution_shift]
 
 # 笔者的个人启示
 
-基于双塔结构的CLIP模型在数据量足够的情况下，即便在预训练情况下都可以实现
-
-
-
-
-
-# 问答环节
-
-
-
-
+基于双塔结构的CLIP模型在数据量足够的情况下，可以在预训练阶段学习到很多通用的视觉语义概念，并且给下游任务提供非常大的帮助。受限于端到端的方式，目前的负样本数量仍然是受限于mini batch size的大小，在MoCo中给出了一个可行的解决方案[6,7]。这种预训练方式能在大规模的商业搜索，推荐广告系统中广泛应用，值得我们研究。
 
 # Reference
 
@@ -182,6 +172,10 @@ CLIP的模型结构和正负样本组成策略并不复杂，其负样本构成�
 [4]. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones,L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Attention is all you need. In Advances in neural information processing systems, pp. 5998–6008, 2017  
 
 [5]. Dosovitskiy, Alexey, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani et al. “An image is worth 16x16 words: Transformers for image recognition at scale.” arXiv preprint arXiv:2010.11929 (2020).
+
+[6]. https://fesian.blog.csdn.net/article/details/119515146
+
+[7]. He, K., Fan, H., Wu, Y., Xie, S., & Girshick, R. (2020). Momentum contrast for unsupervised visual representation learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 9729-9738).
 
 
 
