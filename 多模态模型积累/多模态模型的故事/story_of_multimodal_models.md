@@ -1,5 +1,14 @@
+![fig-poster][fig-poster]
+
 <div align='center'>
-   视频与图片检索中的多模态语义匹配模型：原理、启示、应用与展望
+    <font size="7">
+   视频与图片检索中的多模态语义匹配模型
+    </font>
+</div>
+<div align='right'>
+    <font size="5">
+   ——原理、启示、应用与展望
+    </font>
 </div>
 
 <div align='center'>
@@ -7,18 +16,27 @@
 </div>
 
 
+
+
+
+
+
+
 <div align='right'>
     FesianXu 20230103 at Baidu Search Team. 
 </div>
 <div align='right'>
-  More technology, more humanality
+  Technology makes us more human.
 </div>
+
+
+
 
 
 
 # 前言
 
-三多前笔者在《万字长文漫谈视频理解》[1]一文中，曾经将自己对视频理解的认识进行过简单总结，幸而获得了朋友们的认可，能让读者认可是笔者最为骄傲的成就。现在看来文中观点有不少纰漏狭隘之处，特别是近年来多模态模型的流行，更让视频理解这个方向出现了诸多变革技术，之前在博文《视频分析与多模态融合之一，为什么需要多模态融合》 [2]曾经尝试对[1]进行补丁，但是限于笔者时间和篇幅，并没有进行展开讨论。基于此，本文希望能对近年来的多模态模型进行简单总结，并且简单讨论这些模型在图片搜索和视频搜索这类富媒体检索场景中的应用可能性。笔者入行未深，道行浅薄，**如有谬误请见谅并联系指出，本文遵守[CC 4.0 BY-SA](http://creativecommons.org/licenses/by-sa/4.0/)版权协议，转载请联系作者并注明出处，谢谢**。 
+三多前笔者在《万字长文漫谈视频理解》[1]一文中，曾经将自己对视频理解的认识进行过简单总结，幸而获得了朋友们的认可，能让读者认可是笔者最为骄傲的成就。现在看来文中观点有不少纰漏狭隘之处，特别是近年来多模态模型的流行，更让视频理解这个方向出现了诸多变革技术，之前在博文《视频分析与多模态融合之一，为什么需要多模态融合》 [2] 曾经尝试对[1]进行补丁，但是限于笔者时间和当时的认识水平，并没有进行展开讨论。本文希望能对近年来的多模态模型进行简单总结，并且简单讨论这些模型在图片搜索和视频搜索这类富媒体检索场景中的应用可能性。笔者入行未深，道行浅薄，**如有谬误请见谅并联系指出，本文遵守[CC 4.0 BY-SA](http://creativecommons.org/licenses/by-sa/4.0/)版权协议，转载请联系作者并注明出处，谢谢**。 
 
 $\nabla$ 联系方式：
 
@@ -38,14 +56,13 @@ $\nabla$ 联系方式：
 
 本文的篇幅较长，为了适配不同知识背景的读者，笔者在此提供了本文的导读，请有相关知识背景的读者自行跳转需要的章节。
 
-- 『0x00 视频和图片：信息弥散在时空中』主要介绍了图片与视频的视觉符号，并且介绍了文本-视觉的语义对齐与语义融合在信息检索中的应用。
+- 『0x00 视频和图片：信息弥散在时空中』主要介绍了图片与视频的视觉符号，并且简单介绍了文本-视觉的语义对齐与语义融合在信息检索中的应用。
 - 『0x01 单模态视频/图片特征表达』主要介绍了图片与视频的单模态表征学习方法，最后也对文本的表征方法进行了简单概述。单模态建模是多模态建模的基础，许多跨模态、多模态建模方法收到了单模态建模的深刻影响，因此笔者认为有必要引入本章。
 - 『0x02 语义标签的使用：走向多模态』 主要作为引子介绍多模态与单模态的一些关联与区别，该章作为桥梁桥接着上文单模态建模与下文的多模态建模。
-- 『0x03 在喧嚣中宁静：数据集的采集』主要介绍了多模态相关的一些数据集，以及数据集的采集过程。
+- 『0x03 在喧嚣中宁静：数据集的采集』主要介绍了多模态相关的一些数据集，以及数据集的采集过程。~~经过考虑，本章已删除~~
 - 『0x04 CLIP之前：多模信息的融合建模』 该部分开始正式开始介绍多模态模型，这章介绍的是CLIP之前的语义融合模型。
 - 『0x05 CLIP之后：多模信息的对比、融合建模』 该部分介绍CLIP之后的语义对齐、语义融合模型，这些模型大多都是对CLIP的缺陷的某方面改进。
-
-
+- 『0x06 End of Journey』 对本文的总结。 
 
 #  0x00 视频和图片：信息弥散在时空中
 
@@ -53,7 +70,7 @@ $\nabla$ 联系方式：
 
 ## 图片的视觉元素
 
-大多数图片的基础组成元素都是像素（Pixel）[^2]，像素成片成块组成了图片块（Patch）。图片涉及到的题材广泛地分布在各行各业，如Fig 1.1所示，生物影像，遥感照片，网络表情包，用户上传的自然图片，自拍，红外图等等都可以视为是某种类型的图片。本文较多考虑的是由用户上传的自然图片，下文称之为自然图片（General images）。
+大多数图片的基础组成元素都是像素（Pixel）[^2]，像素成片成块组成了图片块（Patch）。图片涉及到的题材广泛地分布在各行各业，如Fig 1.1所示，生物影像，遥感照片，网络表情包，用户上传的自然图片，自拍，红外图像等等都可以视为是某种类型的图片。本文较多考虑的是由用户上传的自然图片，下文称之为自然图片（General images）。
 
 ![][various-images-types]
 
@@ -63,7 +80,7 @@ $\nabla$ 联系方式：
      </b>
  </div>
 
-自然图片含有复杂的视觉语义，在文章[6]中，作者认为常见的具有区分度(Distinguished)的视觉语义元素有：实体（Entity），属性（Attribution），关系（Relation）等，如Fig 1.2 (a-c) 所示，这些视觉元素偏具象，且是局部语义，比如实体中的大金毛，大橘猫，属性里面的紫色，蓝色，黑色，关系里面的骑着，修理，倒立等等。有些场景中需要表示整个图片的全局视觉语义，需要组合这些局部语义形成全局语义，比如Fig 1.2中的(d)，为了识别出图片中所带有的“抑郁，悲伤”语义，需要提取出图片整体色调，女生趴着，蜡烛熄灭等元素，为了简便，笔者将这种全局语义简称为图片氛围(Atmosphere)。
+自然图片含有复杂的视觉语义，在文章[6]中，作者认为常见的具有区分度(Distinguished)的视觉语义元素有：实体（Entity），属性（Attribution），关系（Relation）等，如Fig 1.2 (a-c) 所示，这些视觉元素偏具象，且是局部语义，比如实体中的大金毛，大橘猫，属性里面的紫色，蓝色，黑色，关系里面的骑着，修理，倒立等等。有些场景中需要表示整个图片的全局视觉语义，需要组合这些局部语义形成全局语义，比如Fig 1.2中的(d)，为了识别出图片中所带有的“抑郁，悲伤”的抽象语义，需要提取出图片整体色调，女生趴着，蜡烛熄灭等元素，为了简便，笔者将这种全局语义简称为视觉氛围(Vision Atmosphere)，这种抽象语义的建模，笔者认为会类似于后文提到的弱视觉语义数据建模，且按下不表。
 
 ![][images-visual-symbols]
 
@@ -82,7 +99,7 @@ $\nabla$ 联系方式：
      </b>
  </div>
 
-当然这些视觉元素可能只是冰山一角，画家用笔触都可以描述情感，摄影家用光影照样述说故事，图片的具象语义往往是底层语义，抽象语义难以建模，因此也不会是本文的关注点。因此，在本文笔者认为大多数图片的具象语义通过实体，属性，关系等视觉符号进行传递，而这些视觉符号或多或少和文本信息能够建立关联。这种建立的文本-视觉之间语义的桥梁，通常可以分为两个阶段，**语义对齐**（Semantic alignment）和**语义融合**（Semantic fusion），如Fig 1.4所示。
+当然这些视觉元素可能只是冰山一角，画家用笔触都可以描述情感，摄影家用光影照样述说故事，图片的具象语义往往是底层语义，抽象语义难以建模，因此也不会是本文的特别关注点（即便弱视觉语义可能和抽象语义有着关联）。因此，在本文笔者认为大多数图片的具象语义通过实体，属性，关系等视觉符号进行传递，而这些视觉符号或多或少和文本信息能够建立关联。这种建立的文本-视觉之间语义的桥梁，通常可以分为两个阶段，**语义对齐**（Semantic alignment）和**语义融合**（Semantic fusion），如Fig 1.4所示。
 
 - 语义对齐：指的是将文本中的视觉实体，属性描述，进行对应视觉元素的映射。此处的图文映射关系可称之为基础视觉语义。
 - 语义融合：在语义对齐的基础上，对基础视觉语义进行融合、组合，从而形成复杂的复合视觉语义。复合视觉语义包括视觉关系，更为抽象的视觉氛围等。
@@ -102,11 +119,11 @@ $\nabla$ 联系方式：
 
 视频不是图片在时间维度上的简单展开，不同帧间图片的视觉元素在时间上的彼此关联带来了更为复杂多变的视觉符号，即便识别出了视频帧所有的视觉符号，其在时间上的简单接驳并不能完全代表视频的视觉符号。
 
-视频的视觉符号最典型的比如动作，如Fig 1.4 (a)所示，动作序列通常是同个实体特定模式的行为，比如弯腰、捡起、起身，在以视频片段为单位的时候就能视为一整个视觉符号。动作通常是一个连续的线性符号，而视频的多帧特性意味着其存在非线性的帧间关联，如[9,10]中所介绍的通过组织视频非线性流进行动作理解的工作。非线性视频的特性在互联网视频中更为常见，如Fig 1.4 (b,c) 所示，互联网视频受到视频创作者的剪辑，视频通常都会出现镜头、场景的切换，事件的因果关系因此作为视觉符号存在于视频的非线性关系中。通常来说，视频的组成可以层次化地分为以下四部分[10]，帧、镜头、事件乃至整个视频都可以视为视频的视觉元素。
+视频的视觉符号最典型的比如动作，如Fig 1.5 (a)所示，动作序列通常是同个实体特定模式的行为，比如弯腰、捡起、起身，在以视频片段为单位的时候就能视为一整个视觉符号。动作通常是一个连续的线性符号，而视频的多帧特性意味着其存在非线性的帧间关联，如[9,10]中所介绍的通过组织视频非线性流进行动作理解的工作。非线性视频的特性在互联网视频中更为常见，如Fig 1.5 (b,c) 所示，互联网视频受到视频创作者的剪辑，视频通常都会出现镜头、场景的切换，事件的因果关系因此作为视觉符号存在于视频的非线性关系中。通常来说，视频的组成可以层次化地分为以下四部分[10]，帧、镜头、事件乃至整个视频都可以视为视频的视觉元素。
 
 > 帧（Frame） --> 镜头（Shot） --> 事件(Event) --> 视频(Video)
 
-因此，对于视频的视觉元素挖掘，会比图片的视觉元素挖掘复杂很多，有些挖掘方法甚至和视觉本身无关，比如识别视频的OCR信息。在实际应用中，我们暂时不期望能对视频的视觉符号进行深入挖掘，认为其只需要挖掘出其中实体、属性、关系等基础视觉概念，顶多能延伸出一些简单的动作、场景视觉概念。
+因此，对于视频的视觉元素挖掘，会比图片的视觉元素挖掘复杂很多，有些挖掘方法甚至和视觉本身无关，比如识别视频的OCR信息。在实际应用中，我们暂时不期望能对视频的视觉符号进行深入挖掘，认为其只需要挖掘出其中实体、属性、关系等基础视觉概念，顶多能延伸出一些简单的动作、场景视觉概念、简单事件的视觉概念等。
 
 ![][various-type-video-series]
 
@@ -434,25 +451,7 @@ $$
 
 ## 文本表征
 
-文本表征不是本文的重点，为了本文的结构完整性，会简单对一些常用的、经典的文本表征建模方法进行概述。Word2vec, GloVe, BERT, ERNIE, SimCSE
-
-
-
-| 方法                             | 来自相关论文 |      |
-| -------------------------------- | ---- | ---- |
-| 局部性原理                       | Word2vec, GloVe |      |
-| Mask Language Modeling           | BERT |      |
-| Next Sentence Predict            | BERT |      |
-| Matching                         |      |      |
-| Knowledge Masking/Entity Masking | ERNIE |      |
-| Token-Document Relation      | ERNIE |      |
-| Capital Prediction           | ERNIE |      |
-| Sentences Reordering         | ERNIE |      |
-| Sentences Distance           | ERNIE |      |
-| Discourse Relation           | ERNIE |      |
-| IR Relevance                 | ERNIE |      |
-
-
+文本表征不是本文的重点，在此不进行介绍，感兴趣的同学请自行查阅文献。（其实是因为笔者太懒:P，而且笔者自知在文本建模上没有特别系统化的认识，就不班门弄斧了。）
 
 
 
@@ -553,6 +552,7 @@ $$
      </b>
  </div>
 
+
 # 0x04 CLIP之前：多模信息的融合建模
 
 笔者前文带领读者了解了一些单模态建模、多模态数据采集等前置知识，本文将带领大家开始正式地接触多模态模型。笔者认为，发表于ICML 2021的对比图文预训练模型（CLIP）可以作为一个分界线，在此之前和在此之后的多模态研究工作有着截然不同的研究范式，其惊艳的zero-shot和few-shot能力进一步引燃了研究者对多模态研究的热情。
@@ -644,11 +644,17 @@ $$
 
 ### VideoBERT
 
-本文不会介绍太多来自于CLIP之前的多模态模型工作，对于视文模型，笔者再补充一个videoBERT。
+本文不会介绍太多来自于CLIP之前的多模态模型工作，对于视文模型，笔者再补充一个videoBERT [42]。videoBERT也是采用Transformer模型对文本和视觉信息进行建模，只不过此处视觉输入并不是稠密向量了，而是尝试对视觉信息进行令牌化。作为一种早期的视觉令牌化尝试，此处采用的视觉令牌是通过层次K-means聚类得到的聚类中心。对比我们提到的BEiT系列方法或者是VQ-VAE方法，这种通过聚类得到视觉令牌的做法太过于简单了些，并且很难进行规模化，理想点的方式应该是通过维护稀疏视觉词表，通过最近邻查表得到稀疏令牌，如同VQ-VAE一般。
 
+videoBERT给我们的启发主要是，视频信息是一种信息冗余度极高的数据形式，对其进行语义令牌化不仅可以大幅度节省模型的资源需求，而且可以着重于建模语义。同时，如同我们后续会介绍到的BEiT v3中提到的，通过视觉稀疏令牌化的形式进行多模态建模，会使得很多之前难以做到的多模态预训练变得可行。
 
+![fig-video-bert-model][fig-video-bert-model]
 
-
+<div align='center'>
+     <b>
+         Fig 5.5 在VideoBERT，采用视觉令牌作为视觉模态的输入，而不是如同UNITER一般的稠密向量。
+     </b>
+ </div>
 
 
 
@@ -1044,7 +1050,7 @@ Lock-Image Tuning（LiT）[20]即便这篇工作的出发点并不是这个，�
          Fig 6.19 LiT的zero-shot实验结果，从（b）中可以注意到Lu和LU的配置并没有在跨模态匹配中超过UU的配置。
      </b>
  </div>
-
+除了从弱视觉语义的角度进行考虑之外，LiT还可以从视觉语义和文本语义的固有特点上进行思考。视觉语义具有稳定性，一个苹果（食物）的图片的语义概念是相对固定的，它不可能突然变成电子产品的苹果手机或者苹果电脑。文本语义则具有多义性、歧义性和时变性，彼时彼刻的“苹果”可能仅有食物的含义，而此时此刻的“苹果”则不仅仅表示食物，更多时候表示的是苹果公司的一系列电子产品了。从这个角度上看，一旦我们的视觉端模型学习得比较充分了，那么将其进行固定，继续去挖掘更多的文本，进而对文本端模型进行持续的训练，似乎是一种自然而然的做法了。不仅如此，由于业务场景的数据通常具有很强的时效性，一个新的流行词会在很短的时间内爆炸性地流传开，并且该流行词通常语义与其原意会有较大差别，通过固定视觉特征，持续对文本模型进行训练的方式，是对业务应用非常友好的一种方式。
 
 ### ALBEF
 
@@ -1204,99 +1210,281 @@ $$
   </b>
 </div>
 
+
+### FLIP
+
+之前我们在讨论单模态自监督建模的时候，曾经提到过MAE和VideoMAE模型，从Fig 2.9 (b)中其实不难发现，即便对图片的大部分区域（80%）进行掩膜，其图片的像素级别重建结果，都仍具备充足的视觉语义信息。这一点容易理解，图片本身就是信息冗余量极大的信息媒介，对其大部分进行掩膜仍然有足够的信息泄漏其视觉语义信息，因此在之前的工作也不乏有进行稀疏令牌化的处理。我们在之前提到将视觉端特征完全固定住的LiT模型，那么是否有一种折中方案，既能减少视觉端模型的资源消耗，又能对视觉端模型也同时进行学习呢？结合以上事实和需求，有学者提出仿照MAE，在CLIP的基础上对输入图片进行大面积的掩膜，将未被掩膜的图片块作为视觉端模型的输入，从而极大程度地减少资源的占用，这就是Fast Language-Image Pretraining（FLIP）[24] 的建模思路。
+
+![fig-flip-framework][fig-flip-framework]
+
+<div align='center'>
+  <b>
+    Fig 6.28 在FLIP中，图片被均匀分块，将其大部分进行掩膜后，将未被掩膜部分按序排列作为图片编码器的输入，进行对比学习建模。
+  </b>
+</div>
+
+如Fig 6.28所示，在FLIP中作者将图片均匀分块，并且将其大部分进行随机掩膜（50%）后，将未被掩膜部分按序排列作为图片编码器的输入，通过对比学习方式进行建模，通过这种方法大幅度减少了图片端模型的显存和计算资源需求，因此能做到：
+
+1. 采用更大的`batch size`
+2. 采用更大的视觉端模型
+3. 能够采用更大的数据集进行预训练
+
+如Fig 6.29所示，采用了FLIP方法后（掩膜50%或75%），能够在更短的时间内达到和原CLIP模型相同的效果，在相同训练时间内，能够达到更好的效果，加速将近3.7倍。
+
+![fig-flip-exp-curve][fig-flip-exp-curve]
+
+<div align='center'>
+  <b>
+    Fig 6.29 采用了FLIP的方法后，能够在更短的时间内达到原CLIP相同的效果。
+  </b>
+</div>
+
+FLIP的方法很直接简单，一贯延续了凯明大佬的风格，在论文里面进行了极为细致的试验，我们这里只摘出一些试验进行分析。如Fig 6.30所示，这是FLIP在ImageNet-1K上进行zero-shot消融试验的结果，其中分别探索了：
+
+1. 掩膜比例的影响：掩膜达到50%的比例能够取得最好的效果，大部分图片块对于对比学习的语义对齐而言似乎都是冗余的。
+2. batch size的影响：FLIP允许batch size开到64k，我们发现无论是在掩膜比例在50%或是75%，果然batch size越大效果越好。
+3. 是否对文本进行掩膜：文本是一种信息密度极大的媒介，直观上看对其进行掩膜会有较大损失，从实验（c）来看也确实如此，不对其进行掩膜的效果是最好的。
+4. 在推理阶段是否进行反掩膜：在推理阶段为了图片信息的完整性，直观的做法就是对其掩膜过程进行逆转，用完整的图片进行推理。从试验（d）上看，采用了反掩膜的方式推理效果最好。
+5. 是否进行反掩膜微调：由于推理时候采用了反掩膜的操作，为了预训练和推理的任务分布一致性，直观来看应该在FLIP预训练完后，对其进行少量的同分布微调。在试验（e）中，作者对FLIP预训练后的结果进行了少量的反掩膜微调，结果确实比基线为佳。
+6. 是否引入视觉重建任务：是否要在对比学习过程中也引入MAE的重建损失呢？试验（f）告诉我们是不需要的，也许MAE的重建任务偏向于像素级重建，而对比学习学习的语义对齐并不依赖于这种低层视觉语义吧。
+
+![fig-flip-zero-shot-ablation][fig-flip-zero-shot-ablation]
+
+<div align='center'>
+  <b>
+    Fig 6.30 FLIP在ImageNet-1K上的zero-shot消融试验结果。
+  </b>
+</div>
+
+再让我们看到FLIP和CLIP的实验对比，如Fig 6.31所示，作者复现了CLIP，同时也采用了OpenCLIP的结果进行对比，采用了FLIP之后在`L/14`和`L/16`设置下都能超越CLIP和openCLIP的结果。这样看来FLIP也是值得探索的一种方法。
+
+![fig-flip-exp-sota][fig-flip-exp-sota]
+
+<div align='center'>
+  <b>
+    Fig 6.31 FLIP与CLIP结果进行对比。
+  </b>
+</div>
+
 ### BEiT v3
 
+我们前文介绍过了对比学习损失在语义对齐任务中的惊艳效果，也早就讨论了为何ITM和MLM损失在语义对齐任务上为何显现劣势，然而是否ITM和MLM损失就真的不能建模语义对齐呢？或者说，这两种损失在语义对齐任务上是否就注定是低效的呢？有趣的是，BEiT v3模型 [68] 似乎给了我们一个不一样的惊喜回答，如Fig 6.32所示，只采用了MLM损失进行建模的BEiT v3模型可谓是六边形战士，在众多视觉、多模态任务上都超越了前辈，达到了state of the art的程度。为何不采用大规模对比学习也可以达到如此好的语义对齐效果？那我们前文讨论的是否是错误的呢？且听笔者慢慢道来。
+
+![fig-beit-v3-performance][fig-beit-v3-performance]
+
+<div align='center'>
+  <b>
+    Fig 6.32 BEiT v3模型可谓是六边形战士，在诸多视觉任务、多模态任务中都以绝对优势，达到了最为领先的水准。
+  </b>
+</div>
 
 
+正如BEiT这个名字所预示的，BEiT v3是BEiT和BEiT v2模型的后续工作，这一系列的一个特点就是采用了视觉的稀疏令牌化去表征视觉特征，当然BEiT v3也不能免俗，同样是深深依赖于视觉稀疏化特征。在BEiT v3中，作者将视觉信息看成是一种“外语”（Imglish），因此将其进行视觉令牌化，令牌化的工具不再采用偏向于像素重建的VQ-VAE方法，而是采用了BEiT v2中所用的基于视觉语义的重建方法，具体请参考第0x01章的内容。通过视觉的稀疏令牌化，此时文本和图片都转换为了一串离散令牌，然后通过Multiway Transformer进行图片、文本、图文对的建模，如Fig 6.33所示。
+
+![fig-beit-v3-framework][fig-beit-v3-framework]
+
+<div align='center'>
+  <b>
+    Fig 6.33 通过Multiway Transformer对图片、文本、图文对数据进行建模，通过Masked Data Modeling预训练任务进行统一建模，不再区分图片与文本的模态区别。
+  </b>
+</div>
 
 
+具体来说，如Fig 6.30所示，BEiT v3的前$(L-F)x$层都由视觉专家`V-FFN`[^11]和文本专家`L-FFN`组成，在最上$x$层则是多模态融合专家`VL-FFN`，此处$x=3$。且不论`V-FFN`、`L-FFN`还是`VL-FFN`，其实本质就是一个`Feed-Forward Network`，只不过对于不同模态的输入会通过训练控制，**路由**到不同的FFN模块，因此而得名罢了。我们不妨数学形式化表达下整个输入过程，假如我们的文本令牌记为$T\in \mathbb{R}^{M \times 1}$，视觉令牌表示为$V \in \mathbb{R}^{N}$，其中$M$和$N$为令牌的数量。通过分别查表后，得到文本和视觉的Embedding向量，分别表示为$T_{e} \in \mathbb{R}^{M \times d}$和$V_{e} \in \mathbb{R}^{N \times d}$，其图文对Embedding向量不妨表示为两者的拼接，也即是有$VL_{e} = [V_{e};T_{e}] \in \mathbb{R}^{(M+N) \times d}$。
 
+Fig 6.33中的`Shared Multi-Head Self-Attention`模组的作用是，不区分文本还是图片亦或是图文对模态，都同样进行多头自注意机制处理，因此得名`shared`，也即是公式(6-24)中的$X$可以为$T_{e}$、$V_{e}$或者是$VL_{e}$。
+$$
+\begin{align}
+O &= \mathrm{softmax}(\dfrac{QK^{\mathrm{T}}}{\sqrt{d_k}}+attn)V \\
+Q &= XW_{Q}\in \mathbb{R}^{N \times D} \\
+K &= XW_{K}\in \mathbb{R}^{N \times D} \\
+V &= XW_{V}\in \mathbb{R}^{N \times D} \\
+O &= XW_{Q}\in \mathbb{R}^{N \times D} \\
+\end{align}
+\tag{6-24}
+$$
+在预训练的时候，只采用了Masked Data Modeling的方式进行建模，而这个本质和MLM是一样的。具体来说，就是甭管单模态输入（文本或者图片），还是多模态输入（图文对），都只对其中的文本/图片进行掩膜操作，并且训练模型尝试进行掩膜令牌的重建。作者对单模态的文本输入进行$15\%$概率的随机掩膜，对于多模态下的文本输入则采用了$50\%$概率的随机掩膜，对于图片的掩膜策略则参考了BEiT v2的方案，这里不再赘述。在BEiT v3中，作者将`batch size`设置为了6144，也即是2048个单模态文本、2048个单模态图片和2048个多模态图文对。这个远小于典型的对比学习`batch size`[^12]，而从论文的一系列试验结果来看，如Fig 6.35和Fig 6.32所示，BEiT v3的性能在诸多视觉和多模态任务上都超越了前辈，其中也包括采用了大规模对比学习的CLIP，如Fig 6.35 (b)所示，甚至在CLIP引以为豪的zero-shot实验场景中，BEiT v3都占据了绝对的优势。
 
+![fig-beit-v3-various-modality][fig-beit-v3-various-modality]
 
+<div align='center'>
+  <b>
+    Fig 6.34 BEiT v3可以分为视觉编码器，文本编码器和融合编码器，其中的视觉编码器和文本编码器可以单独拿出来作为双塔模型，进行检索任务。
+  </b>
+</div>
 
+从以上的讨论来看，BEiT v3可谓是大道至简，其只采用了MLM损失进行建模，不仅建模了单模态的表征，还同时建模了语义对齐。如Fig 6.35所示，BEiT v3在检索任务中无论是finetune后结果还是zero-shot结果，都能达到SOTA的程度。为何BEiT v3和我们之前讨论的，同为采用了MLM建模的UNITER表现差别如此之大？难道我们之前对MLM的判断有失偏颇？笔者认为，主要区别在于BEiT v3采用了足够好的视觉语义稀疏化特征，将图片块转化为了稀疏令牌进行MLM方式建模，这样有几个好处：
+
+1. 视觉的稀疏令牌和文本的令牌并无本质区别，可视为是同质的输入，对其进行MLM建模类似于是文本的自监督训练，而众所周知，文本的MLM自监督任务已经是目前文本预训练的主流范式之一了。
+2. 输入单元从图片块变成了单个令牌，训练效率更高，在相同的资源消耗下，可以进行更多次训练。
+2. 基于视觉令牌的预测，比起像素级预测，更具有语义信息。
+
+从BEiT v3的做法来看，我们发现MLM即便是一种语义融合的建模方式，也并不是不能对语义对齐进行建模，通过引入高度语义化的视觉令牌，再进行跨模态的MLM任务，也能够高效地学习到**视觉令牌与文本令牌的语义对齐与语义融合关系**[^13]。这样看来，语义融合的损失也并不是不能高效地建模语义融合，于是我们对语义融合和语义对齐建模的认知又更进一步，这两者并不是泾渭分明的彼与此，而是紧密相关的。
+
+![fig-beit-v3-exp-1][fig-beit-v3-exp-1]
+
+<div align='center'>
+  <b>
+    Fig 6.35 BEiT v3的试验结果，其中（a）为在MSCOCO和Flick30k上进行finetune后的结果；（b）为Flickr30K上的zero-shot结果。
+  </b>
+</div>
 
 ## 视文模型
 
 ### CLIP4clips
 
+我们在之前介绍了很多CLIP之后的图文匹配模型，在大量图文数据的大规模对比学习预训练下，CLIP的图片语义对齐能力已经很强了，是否能将图片CLIP的能力迁移到视频上呢？如果将视频看成是图片在时间轴上的展开，那么将图片CLIP迁移到视频上的做法是自然而然的，在CLIP4clips [41] 中对这个做法进行了探索。如Fig 6.28所示，作者将图片CLIP预训练好的图片ViT模型参数，直接加载到视频ViT模型中，而此处的视频ViT模型，其实也是单独对视频中的每一帧进行特征提取罢了。让我们进行形式化表达，用$\mathbf{x} \in \mathbb{R}^{T \times W \times H \times 3}$表示当前输入的视频，其有$T$帧，对其进行划分patch，每个patch的大小则为$\mathbf{x}_{i} \in \mathbb{R}^{T \times K_{W} \times K_{H} \times 3}, i=0,\cdots,M$，将其作为ViT的输入（当然，在此之前还需要进行拉直和线性映射），我们取模型的`[CLS]`向量作为视频的特征输出，表示为$\mathbf{y}\in \mathbb{R}^{T \times D}$，其中的$D$为Embedding维度。因此，视频的每一帧相当于都单独经过了ViT模型进行特征提取。在这个基础上，作者在这个工作里面主要探索了两点：
 
+1. 我们在图片CLIP预训练好的情况下，如何建模视频的时序信息呢？
+2. 为了减缓图片和视频数据上分布差异，图片CLIP是否需要在视频数据上进行后预训练（post-pretrain）呢？
+
+我们接下来对两个问题进行探索。
 
 ![fig-clip4clips-framework][fig-clip4clips-framework]
 
-
-
+<div align='center'>
+  <b>
+    Fig 6.28 CLIP4clips的网络结构示意图。
+  </b>
+</div>
+现在我们的视频特征为$\mathbf{y} \in \mathbb{R}^{T \times D}$，而且此时ViT的建模过程中没有任何的时序建模，为了弥补图片和视频固有的差别（即是时序信息），我们还需要考虑对时序信息进行建模。作者将这个时序建模的过程，与同文本特征进行打分的过程糅合在一起，称之为相关性计算（Similarity Calculator）。在论文中作者探索了三种相关性计算方式，如Fig 6.29所示，第一种称之为无参数模式（Parameter-free type），在这个设定下，对视频特征在时序维度上进行`mean pooling`，得到汇聚的视频粒度表征后，与文本表征进行余弦相似度计算。第二种方式，称之为序列模式（Sequential type），在这个设定下，采用Transformer或者LSTM去建模时序，同样对得到的视频粒度表征与文本表征进行余弦相似度计算。而最后一种方式称之为紧密模式（Tight type），在该设定下整个相关性计算过程由整个Transformer建模，该Transformer的输出直接就是相关性打分。从参数量的数量来看，一般是 3 > 2 > 1。
 
 
 ![fig-clip4clips-three-styles][fig-clip4clips-three-styles]
 
+<div align='center'>
+  <b>
+    Fig 6.29 三种不同建模视频时间序列的方法。
+  </b>
+</div>
+让我们观察下试验结果，作者在四种不同的视频测试集上进行了测试，如Fig 6.30所示，我们发现两个结论：
 
+1. 在不同数据集上，`meanPool`和`seqLSTM`/`seqTransf`各有攻城略地之处，在较小型的数据集上，没有引入额外参数的`meanPool`具有优势（比如MSVD数据集只有不到2000个视频，每个视频时长约60秒）。在数据量较多时如LSMDC数据集（含有约12万视频，每个视频时长在2-30秒之间）和ActivityNet数据集（含有约20000个youtube视频），DiDeMo数据集（含有10000个视频），能看到`seqLSTM`和`seqTransf`的效果更佳，对比CLIP-straight的结果，我们能发现虽然同为视觉信息，**图片和视频的差别是很大**的，因此有必要引入额外的模块对视频时序信息进行建模。
+2. 在所有四个测试集中，参数量最大的`tightTransf`方式的效果都是最差的，由于该模式引入了过多的未经过预训练的参数，因此其训练需要有更多的数据支持，在**已经预训练好的模型中，引入新的参数应该尽可能地谨慎**。
 
+![fig-temporal-fusion][fig-temporal-fusion]
 
+<div align='center'>
+  <b>
+    Fig 6.30 CLIP4clips中对不同时序建模方式，在多个视频数据集上的测试结果。
+  </b>
+</div>
+在这篇工作中，作者同样对一些常见的超参数进行了消融试验探索，如Fig 6.31所示，我们主要关注最后一个试验，也即是对所采用的的帧长度对整个试验结果的影响。如Fig 6.31 (d)所示，我们能发现，采用的帧越多其效果越好，但是在帧长度为6的时候达到了饱和，同时当帧长度为1的时候（也即是单张图片），此时效果会比采用多帧有非常大的衰减（~10%-20%），这意味着确实对于视频来说需要采用多帧信息进行建模，即便如此，单帧信息也蕴含着一定的视频内容信息。那么我们究竟应该怎么选择视频帧呢？我们肯定是需要采样的。如Fig 6.32 (b)所示，作者对采样帧的位置（头部，尾部和均匀采样）进行了探索，在大多数情况下都是均匀采样更为有效，这个也符合我们预期，大部分视频有效信息应该是均匀弥散在整个视频的。
+
+![fig-clip4clips-ablation-hyper][fig-clip4clips-ablation-hyper]
+
+<div align='center'>
+  <b>
+    Fig 6.31 作者对Batch size、Learning rate、Freeze layer和Frame length等超参数进行探索。
+  </b>
+</div>
+让我们回到最后一个问题，为了弥补图片和视频之间的gap，是否需要在视频数据上进行post-pretrain呢？如Fig 6.32 (a)所示，作者在HowTo100M数据集上对模型进行了post-pretrain（用P-PT表示），我们能发现无论是在zero-shot还是在finetune设定下的P-PT都能带来一定的效果增益，这一定程度上再次证实了图片和视频之间确实存在gap，最好进行post-pretrain去减少这个gap以取得更好的效果。
+
+![fig-clip4clips-post-pretrain][fig-clip4clips-post-pretrain]
+
+<div align='center'>
+  <b>
+    Fig 6.32 （a）对是否采用post-pretrain的结果探索；（b）对视频帧采样位置的探索。
+  </b>
+</div>
 
 ### X-CLIP
 
+我们在FILIP这篇工作中曾经介绍过图片与文本的细粒度交互建模方式，那么延伸到视频-文本也是有相似的工作的，X-CLIP [38]就是对文本和视频进行多粒度建模的工作。如Fig 6.33所示，通过组合文本端的句子/词、视觉端的视频/帧，可以形成四种不同类型的pair，其中包含有三种不同的粒度。
+
+![fig-xclip-4-types][fig-xclip-4-types]
+
+<div align='center'>
+  <b>
+    Fig 6.33 文本与视频可以组成四种的pair，包含有三种不同的粒度（粗粒度、细粒度、交叉粒度）。
+  </b>
+</div>
+
+如Fig 6.34所示，从模型的建模方式来看，无论是视觉端还是文本端都采用了Transformer进行建模，其中视觉端是ViT模型。为了获得文本和视频的细粒度信息，在文本侧不仅利用了`[CLS]`的输出特征作为**句子粒度表征**，同样对各个位置的token输出特征作为**字词粒度表征**。对于视觉端而言，不同帧位置的Transformer特征输出我们视为是**帧粒度表征**，而对这些表征进行`mean pool`后结果我们视为是**视频粒度表征**。且让我们形式化表达，我们用$v^{\prime} \in \mathbb{R}^{D}$表示视频粒度表征，$t^{\prime} \in \mathbb{R}^{D}$表示句粒度表征，$F \in \mathbb{R}^{n \times D}$表示帧粒度表征，$T \in \mathbb{R}^{m \times D}$表示字词粒度表征，那么两个模态的粗细表征之间彼此可以构成对比，如下所示
+$$
+\begin{align}
+S_{V-S} &= ((v^{\prime})^{\mathrm {T}}(t^{\prime})) \in \mathbb{R}^{1} \\
+S_{V-W} &= (Tv^{\prime})^{\mathrm{T}} \in \mathbb{R}^{1 \times m} \\
+S_{F-S} &= Ft^{\prime} \in \mathbb{R}^{n \times 1} \\
+S_{F-W} &= FT^{\mathrm{T}} \in \mathbb{R}^{n \times m}
+\end{align}
+\tag{6-25}
+$$
+除了粗粒度对比打分$S_{V-S}$是一个数值打分外，其他细粒度和交叉粒度打分都为矩阵或者向量，需要采用一定的方法对其进行聚合成数值打分后，才能加和起来形成最终的多粒度对比相似度打分（Multi-grained Contrastive Similarity），那么将这个聚合的过程称之为Attention Over Similarity Matrix（AOSM），如公式(6-26)所示。
+$$
+\begin{align}
+S^{\prime}_{V-S} &= ((v^{\prime})^{\mathrm {T}}(t^{\prime})) \in \mathbb{R}^{1} \\
+S^{\prime}_{V-W} &= \sum_{i=1}^{m} \dfrac{\exp(S_{V-W}(1,i)/\tau)}{\sum_{j=1}^{m} \exp(S_{V-W}(1,j)/\tau)} S_{V-W}(1, i) \in \mathbb{R}^{1} \\
+S^{\prime}_{F-S} &= \sum_{i=1}^{n} \dfrac{\exp(S_{F-S}(i,1)/\tau)}{\sum_{j=1}^{n}\exp(S_{F-S}(j,1)/\tau)} S_{F-S}(i,1) \in \mathbb{R}^{1}
+\end{align}
+\tag{6-26}
+$$
+
+![fig-xclips-framework][fig-xclips-framework]
+
+<div align='center'>
+  <b>
+    Fig 6.34 X-CLIP中每个模态能分别产出粗粒度和细粒度的特征，进行交叉组合后能产生4种不同pair的相似度打分，通过AOSM模块对交叉粒度和细粒度打分矩阵/向量进行聚合。
+  </b>
+</div>
+让我们用一个对比实验结束这一章的内容，如Fig 6.35所示，作者在MSR-VTT数据集上，通过组合这四种粒度的打分，进行消融试验对比。其中有几个观察：
+
+1. 观察Exp1 - Exp4，我们发现采用了细粒度Word-Frame对比的结果，不一定就比粗粒度的Sent-Video对比更好，笔者猜测，完全通过细粒度去建模对比，可能会缺失一些全局信息，对于检索而言可能并不是一件好事儿。
+2. 观察Exp4、Exp1与Exp7，我们发现一旦细粒度的Word-Frame对比加上Sent-Frame的交叉粒度对比，其表现就能超过粗粒度表现了，这意味着不仅需要单纯建模细粒度信息，同时还需要考虑粗粒度的信息（比如此时文本是句子粒度的）。同样的结论也可以对比试验Exp1、Exp4和Exp6，或者Exp1、Exp4和Exp10得到。
+3. 加上了粗粒度，细粒度和交叉粒度后的结果，在所有设定中取得了最优，给我们了一个启示，即便建模了细粒度，也不能抛弃粗粒度和交叉粒度的应用，否则可能学习不充分，导致不能得到最佳效果。
+
+![fig-x-clip-exp-result][fig-x-clip-exp-result]
+
+<div align='center'>
+  <b>
+    Fig 6.35 X-CLIP在MSR-VTT数据集上，对不同粒度的打分进行组合后的检索性能表现对比。
+  </b>
+</div>
+
+
+# 0x06 End of Journey
+
+这是一个漫长的多模态旅途，感谢作为读者和笔者的你我，都能共同到达这里，我们本文算是告一段落了。我们在本文介绍了一些比较有启发性的工作，限于篇幅笔者不可能对浩如烟海的多模态文献都进行整理，作为一个总结，目前常见的多模态匹配模型的优化点，笔者认为可以大致归结为Table 7.1所示的几种方向，其中加粗表示本文进行过介绍。
+
+<div align='center'>
+  <b>
+    Table 7.1 常见的多模态匹配模型的优化方向，以及代表性的工作。
+  </b>
+</div>
+
+| 多模态匹配模型优化方向                  | 代表性工作举例                                               |
+| --------------------------------------- | ------------------------------------------------------------ |
+| 细粒度/多粒度建模                       | **FILIP** [39], **X-CLIP** [38]...                           |
+| 解耦负样本与batch size的关系/加速预训练 | **WenLan** 1.0 [18], WenLan 2.0, **FLIP** [24]...            |
+| 利用多视角数据                          | **ERNIE-VIL 2.0** [19]...                                    |
+| 扩大规模(Scaling)                       | **CLIP** [15], **FLIP**, **ALIGN** [17]…                     |
+| 语义对齐+语义融合的重排序               | **ALBEF** [40], BLIP…                                        |
+| 统一的多模态框架                        | Florence, FLAVA, **BEiT v3**, Coca...                        |
+| 图片CLIP迁移到视频CLIP                  | **CLIP4clips** [41]...                                       |
+| 视觉稀疏令牌化                          | **VideoBERT** [42], **BEiT**, **BEiT v2**, **BEiT v3**, **VQ-VAE** [45], **BEVT**, VIMPAC, dVAE… |
+| 语义融合模型                            | **UNITER** [43], OSCAR, UniVL…                               |
+| 更好的语义对齐模型                      | **LiT** [44]...                                              |
+| 多语言模型                              | Wukong, Chinese CLIP, **WenLan**...                          |
+| 损失函数优化                            | CLIP-Lite [70]                                               |
+| ...                                     | ...                                                          |
+
+人类的感知是基于外界环境的多模态信息交互获得的，多模信息可谓是人类最为自然的输入模式，可能也是通往更深一层人工智能的通路。笔者深知多模态模型之复杂，因此本文只是对多模态语义匹配模型的一些简单总结，有非常多优秀的工作由于笔者精力、能力有限而未曾细读，实属遗憾，本文仅以抛砖引玉，如若某处能对读者有所帮助，则笔者撰此文的目的就达到了。
+
+如若谈到这些工作的实际业务应用情况，笔者认为对于工业界的应用而言，这些学术论文大多不能直接迁移，原因很简单，业务场景与学术场景有太多gap了。以搜索场景为例子，我们举几个例子：
+
+1. 我们的文本侧大多不像是学术工作里面的caption文本，而是用户query，query与caption之间有着太大的gap，并且不同业务之间的用户query也有着显著的差别。一个模型和方法在某个业务上能work，并不代表其能在另一个业务上work，因此读者会发现本文，并没有特别关注到学术论文在benchmark上的指标，而是尝试去挖掘其中可能带来的启发，这些启发对我们认知业务与学术区别有所裨益，在结合了业务知识后能够帮助我们更好地推进业务模型优化。
+
+2. 不仅是文本侧有明显gap，在视频/图片上，学术数据和业务数据差别也非常大，在业务中更多的是所谓的弱视觉语义数据，因此我们会发现一些细粒度和多粒度的方法是非常值得尝试的。
+
+3. 业务数据规模太大也导致很多方法不能以合理的成本推广，并且受限于上线方式，很多学术前言探索需要落地，需要考虑很多架构优化和方法上的简化。
 
 
 
-
-![fig-x-clip-cross-grained][fig-x-clip-cross-grained]
-
+此处尚远不是终点啊，希望我们以后有机会在新的篇章里面继续我们的多模态旅途，路漫漫其修远兮，吾将上下而求索。
 
 
 
-
-
-
-# 0x07 说在最后
-
-
-
-
-
-| 方向                      | 模型名                                                       |
-| ------------------------- | ------------------------------------------------------------ |
-| 细粒度/多粒度建模         | FILIP [39], X-CLIP [38]...                                   |
-| 增大负样本数量/加速预训练 | WenLan 1.0 [18], WenLan 2.0, FLIP [24]...                    |
-| 利用多视角数据            | ERNIE-VIL 2.0 [19]...                                        |
-| 扩大规模(Scaling)         | CLIP [15], FLIP, ALIGN [17]…                                 |
-| 语义对齐+语义融合的重排序 | ALBEF [40], BLIP…                                            |
-| 统一的多模态框架          | Florence, FLAVA, BEiT v3, Coca...                            |
-| 图片CLIP迁移到视频CLIP    | CLIP4clips [41]...                                           |
-| 视觉稀疏令牌化            | VideoBERT [42], BEiT, BEiT v2, BEiT v3, VQ-VAE [45], BEVT, VIMPAC, dVAE… |
-| 语义融合模型              | UNITER [43], OSCAR, UniVL…                                   |
-| 更好的语义对齐模型        | LiT [44]...                                                  |
-| 多语言模型                | Wukong, Chinese CLIP, WenLan...                              |
-| ...                       | ...                                                          |
-
-
-
-
-
-# Appendix A. 术语表
-
-| 中文术语                  | 对应英文术语               | 简要解释 |
-| ------------------------- | -------------------------- | -------- |
-| 语义对齐                  | Semantic alignment         |          |
-| 语义融合                  | Semantic fusion            |          |
-| 稀疏视觉令牌化/视觉令牌化 | Sparse visual tokenization |          |
-| 视觉元素/视觉符号         | Visual symbol              |          |
-| 记忆单元                  | Memory bank                |          |
-| 图片块                    | image patch                |          |
-| 视频块                    | video cube                 |          |
-| 低层视觉语义              | low-level visual semantic  |          |
-| 高层视觉语义              | high-level visual semantic |          |
-| 分布式表征                | distributed representation |          |
-| 嵌入特征                  | embedding feature          |          |
-| 提示词                    | prompt                     |          |
-|                           |                            |          |
-|                           |                            |          |
-|                           |                            |          |
-|                           |                            |          |
-|                           |                            |          |
-
-
-
-# Appendix B. 数据集整理
+# Appendix A. 数据集整理
 
 人工标注数据集
 
@@ -1324,10 +1512,6 @@ $$
 | LAION-400M [24]    | 400M   | private                    | image-text |
 | LAION-2B [24]      | 2B     | private                    | image-text |
 | ......             |        |                            |            |
-
-常见测试集
-
-
 
 
 
@@ -1468,11 +1652,11 @@ Springer, 2016. short for colorization
 
 [67]. https://github.com/salesforce/ALBEF/issues/22
 
-[68]. 
+[68]. Wang, Wenhui, Hangbo Bao, Li Dong, Johan Bjorck, Zhiliang Peng, Qiang Liu, Kriti Aggarwal et al. "Image as a foreign language: Beit pretraining for all vision and vision-language tasks." *arXiv preprint arXiv:2208.10442* (2022). short for BEiT v3
 
+[69]. Bao, H., Wang, W., Dong, L., Liu, Q., Mohammed, O. K., Aggarwal, K., ... & Wei, F. (2021). Vlmo: Unified vision-language pre-training with mixture-of-modality-experts. *arXiv preprint arXiv:2111.02358*. 
 
-
-
+[70]. Shrivastava, A., Selvaraju, R. R., Naik, N., & Ordonez, V. (2021). CLIP-Lite: information efficient visual representation learning from textual annotations. *arXiv preprint arXiv:2112.07133*. short for CLIP-Lite
 
 
 
@@ -1495,17 +1679,18 @@ Springer, 2016. short for colorization
 
 [^10]: 这种做法在NLP里面也是一种经典做法，比如$f(king)-f(male) \approx f(queue)$，这一定程度代表了embedding的语义对齐能力。
 
+[^11]: 在Multiway Transformer原论文 [69] 中，`V-FFN`和`L-FFN`被称之为“视觉专家”和“文本专家”，采用的是Mixture of Multiple Experts (MMoE) 的思想。
+[^12]: CLIP的`batch size`高达32k，ALIGN的`batch size`大概是16k。
 
-
-
+[^13]: 为了谨慎起见，此处的描述是“视觉令牌与文本令牌的对齐”，而不是“视觉概念与文本概念的对齐”，笔者主要考虑到稀疏的视觉令牌其所蕴含的语义应该是视觉概念的子集，视觉令牌与文本令牌的对齐并不能反推出两个模态的语义对齐。
 
 
 
 [qrcode]: ./imgs/qrcode.png
 [various-images-types]: ./imgs/various-images-types.png
-[images-visual-symbols]: ./imgs/images-visual-symbols.png
+[images-visual-symbols]: ./imgs/images-visual-symbols-2.png
 
-[various-type-video-series]: ./imgs/various-type-video-series.png
+[various-type-video-series]: ./imgs/various-type-video-series-2.png
 [semantic-alignment-and-fuse]: ./imgs/semantic-alignment-and-fuse.png
 
 [irony_comic_examples]: ./imgs/irony_comic_examples.png
@@ -1558,7 +1743,7 @@ Springer, 2016. short for colorization
 [fig-bevt-framework]: ./imgs/fig-bevt-framework.png
 [fig-multi-modal-models-data]: ./imgs/fig-multi-modal-models-data.png
 [fig-uniter-framework]: ./imgs/fig-uniter-framework.png
-[fig-uniter-loss]: ./imgs/fig-uniter-loss.png
+[fig-uniter-loss]: ./imgs/fig-uniter-loss-2.png
 
 [fig-itm-mlm-exp-result]: ./imgs/fig-itm-mlm-exp-result.png
 [fig-clip-semantic-alignment]: ./imgs/fig-clip-semantic-alignment.png
@@ -1602,4 +1787,28 @@ Springer, 2016. short for colorization
 [fig-clip4clips-framework]: ./imgs/fig-clip4clips-framework.png
 [fig-clip4clips-three-styles]: ./imgs/fig-clip4clips-three-styles.png
 [fig-x-clip-cross-grained]: ./imgs/fig-x-clip-cross-grained.png
+
+[fig-video-bert-model]: ./imgs/fig-video-bert-model.png
+
+[fig-xclip-4-types]: ./imgs/fig-xclip-4-types.png
+[fig-xclips-framework]: ./imgs/fig-xclips-framework.png
+
+[fig-beit-v3-performance]: ./imgs/fig-beit-v3-performance.png
+[fig-beit-v3-framework]: ./imgs/fig-beit-v3-framework.png
+[fig-beit-v3-various-modality]: ./imgs/fig-beit-v3-various-modality.png
+[fig-beit-v3-exp-1]: ./imgs/fig-beit-v3-exp-1.png
+
+[fig-flip-framework]: ./imgs/fig-flip-framework.png
+[fig-flip-exp-curve]: ./imgs/fig-flip-exp-curve.png
+[fig-flip-zero-shot-ablation]: ./imgs/fig-flip-zero-shot-ablation.png
+[fig-flip-exp-sota]: ./imgs/fig-flip-exp-sota.png
+
+[fig-temporal-fusion]: ./imgs/fig-temporal-fusion.png
+
+[fig-clip4clips-ablation-hyper]: ./imgs/fig-clip4clips-ablation-hyper.png
+[fig-clip4clips-post-pretrain]: ./imgs/fig-clip4clips-post-pretrain.png
+
+[fig-x-clip-exp-result]: ./imgs/fig-x-clip-exp-result.png
+
+[fig-poster]: ./imgs/fig-poster-2.png
 
